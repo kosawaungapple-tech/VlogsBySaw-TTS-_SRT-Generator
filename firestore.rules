@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Shared validation helpers
+    function isSignedIn() { return request.auth != null; }
+    
+    // Check if the current user session matches the admin code
+    function isAdmin() {
+      return isSignedIn() && 
+             get(/databases/$(database)/documents/sessions/$(request.auth.uid)).data.accessCode == 'saw_vlogs_2026';
+    }
+
+    match /activity_logs/{doc} {
+      allow read, write: if isAdmin();
+    }
+    
+    match /sessions/{uid} {
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
+      allow read: if isAdmin();
+    }
+    
+    match /user_controls/{vbsId} {
+      // allow get for login/verification and profile reading
+      allow get: if isSignedIn();
+      
+      // Admin only for list and writes
+      allow list, write: if isAdmin();
+    }
+    
+    match /history/{doc} {
+       // Users can read/write their own history
+       allow read, write: if isSignedIn() && (
+         isAdmin() ||
+         resource.data.userId == get(/databases/$(database)/documents/sessions/$(request.auth.uid)).data.accessCode ||
+         request.resource.data.userId == get(/databases/$(database)/documents/sessions/$(request.auth.uid)).data.accessCode
+       );
+    }
+    
+    match /globalRules/{doc} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /system_config/{doc} {
+      allow read, write: if isAdmin();
+    }
+    
+    match /settings/{doc} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
