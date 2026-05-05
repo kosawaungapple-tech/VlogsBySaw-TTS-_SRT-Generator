@@ -1,7 +1,9 @@
+import { GoogleGenAI, Modality } from "@google/genai";
 import { TTSConfig, AudioResult, SRTSubtitle } from "../types";
 import { VOICE_OPTIONS, GEMINI_MODELS } from "../constants";
 import { formatTime } from "../utils/audioUtils";
 import { generateOptimizedSubtitles } from "../utils/subtitleUtils";
+import { apiChannelManager } from "./apiChannelManager";
 
 interface GeminiResponse {
   candidates?: Array<{
@@ -17,81 +19,83 @@ interface GeminiResponse {
   }>;
 }
 
-const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-
 /**
  * GeminiTTSService handles integration with Google Generative AI
  */
 export class GeminiTTSService {
   private apiKey: string;
-  private static currentKeyIndex: number = 0;
-  private apiKeys: string[] = [];
+  private isAdmin: boolean;
 
-  constructor(apiKeys?: string | string[]) {
-    if (Array.isArray(apiKeys)) {
-      this.apiKeys = apiKeys.map(k => k.trim()).filter(k => k);
-    } else if (apiKeys && typeof apiKeys === 'string') {
-      this.apiKeys = apiKeys.split(',').map(k => k.trim()).filter(k => k);
-    }
-
-    if (this.apiKeys.length === 0) {
-      const envKey = (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY) : '') || '';
-      if (envKey.trim()) {
-        this.apiKeys = [envKey.trim()];
-      }
-    }
-
-    if (this.apiKeys.length === 0) {
-      throw new Error("API Key required. Please configure in Settings.");
-    }
-
-    this.apiKey = this.apiKeys[GeminiTTSService.currentKeyIndex] || this.apiKeys[0];
+  constructor(apiKey?: string, isAdmin: boolean = false) {
+    this.apiKey = apiKey || '';
+    this.isAdmin = isAdmin;
   }
 
-  private async geminiRequest(model: string, body: object): Promise<GeminiResponse> {
-    const url = `${GEMINI_BASE}/${model}:generateContent?key=${this.apiKey}`;
-    console.log(`Gemini Request [${model}]:`, url);
-    
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-
-    if (!res.ok) {
-      const responseText = await res.text();
-      console.error(`TTS Response status: ${res.status}`);
-      console.error(`TTS Response body: ${responseText}`);
-
-      let err;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async geminiRequest(modelName: string, body: { contents: any[]; generationConfig?: any }): Promise<GeminiResponse> {
+    const executeRequest = async (key: string) => {
+      console.log(`Gemini Proxy Request [${modelName}]. Key:`, key ? `${key.substring(0, 4)}...${key.substring(key.length - 4)}` : "MISSING");
+      
       try {
-        err = JSON.parse(responseText);
-      } catch {
-        err = { error: { message: responseText || res.statusText, status: res.status } };
+        const response = await fetch('/api/gemini/proxy', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: modelName,
+            contents: body.contents,
+            config: body.generationConfig,
+            apiKey: key
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || `Proxy error: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        
+        console.log(`Gemini Proxy Response Keys [${modelName}]:`, Object.keys(data));
+
+        const candidates = data.candidates;
+
+        if (!candidates || candidates.length === 0) {
+          console.warn(`Gemini Proxy: No candidates in response for ${modelName}`);
+        }
+        
+        // Map proxy response back to our internal GeminiResponse interface
+        return {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          candidates: candidates?.map((c: any) => ({
+            content: {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              parts: c.content?.parts?.map((p: any) => ({
+                text: p.text,
+                inlineData: p.inlineData ? {
+                  data: p.inlineData.data,
+                  mimeType: p.inlineData.mimeType
+                } : undefined
+              }))
+            }
+          }))
+        } as GeminiResponse;
+      } catch (err) {
+        console.error(`Gemini Proxy Error [${modelName}]:`, err);
+        throw err;
       }
-      
-      console.error(`Gemini Error [${model}]:`, JSON.stringify(err, null, 2));
-      
-      if (res.status === 429 && this.apiKeys.length > 1) {
-        this.rotateKey();
-        return this.geminiRequest(model, body);
-      }
-      
-      throw err;
+    };
+
+    if (this.apiKey) {
+      return executeRequest(this.apiKey);
     }
 
-    return res.json() as Promise<GeminiResponse>;
-  }
-
-  private rotateKey(): void {
-    if (this.apiKeys.length <= 1) return;
-    GeminiTTSService.currentKeyIndex = (GeminiTTSService.currentKeyIndex + 1) % this.apiKeys.length;
-    this.apiKey = this.apiKeys[GeminiTTSService.currentKeyIndex];
-    console.log(`GeminiService: Rotated to channel ${GeminiTTSService.currentKeyIndex}`);
+    return apiChannelManager.callWithAutoSwitch((key) => executeRequest(key), false, this.isAdmin);
   }
 
   public static getActiveKeyIndex(): number {
-    return GeminiTTSService.currentKeyIndex;
+    return apiChannelManager.getAdminActiveIndex();
   }
 
   async verifyConnection(): Promise<{ isValid: boolean; status?: number; error?: string }> {
@@ -110,13 +114,127 @@ export class GeminiTTSService {
     }
   }
 
-  async generateTTS(text: string, config: TTSConfig): Promise<AudioResult> {
+  private convertPCMToWav(base64PCM: string, sampleRate: number = 24000): Blob {
+    const pcmBytes = Uint8Array.from(atob(base64PCM), c => c.charCodeAt(0));
+    const wavBuffer = new ArrayBuffer(44 + pcmBytes.length);
+    const view = new DataView(wavBuffer);
+
+    // WAV header
+    const writeString = (offset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) {
+        view.setUint8(offset + i, str.charCodeAt(i));
+      }
+    };
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + pcmBytes.length, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);       // PCM format
+    view.setUint16(22, 1, true);       // mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(36, 'data');
+    view.setUint32(40, pcmBytes.length, true);
+
+    // Copy PCM data
+    new Uint8Array(wavBuffer, 44).set(pcmBytes);
+
+    return new Blob([wavBuffer], { type: 'audio/wav' });
+  }
+
+  async generateTTS(text: string, config: TTSConfig, onFirstChunk?: (result: AudioResult) => void): Promise<AudioResult> {
+    const chunks = this.splitIntoChunks(text, 250); // Split into ~250 char chunks (slightly more than 200 for better context)
+    console.log(`TTS Service: Splitting text into ${chunks.length} chunks for parallel generation...`);
+
+    if (chunks.length <= 1) {
+      return this.generateSingleTTS(text, config);
+    }
+
+    // Generate all chunks in parallel with a timeout
+    const chunkPromises = chunks.map((chunk, index) => {
+      // Wrap each request in a 30s timeout as requested
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error(`TTS chunk ${index} timed out after 30s`)), 30000)
+      );
+
+      return Promise.race([
+        this.generateSingleTTS(chunk, config),
+        timeoutPromise
+      ]);
+    });
+
+    try {
+      // Special handling for first chunk to play fast
+      if (onFirstChunk) {
+        chunkPromises[0].then(firstResult => {
+          console.log("TTS Service: First chunk ready, triggering callback...");
+          onFirstChunk(firstResult);
+        }).catch(err => console.error("TTS Service: First chunk failed:", err));
+      }
+
+      const results = await Promise.all(chunkPromises);
+      console.log(`TTS Service: All ${results.length} chunks generated successfully.`);
+
+      // Combine results
+      return this.mergeAudioResults(results);
+    } catch (error) {
+      console.error("TTS Service: Parallel generation failed, falling back to single request:", error);
+      return this.generateSingleTTS(text, config);
+    }
+  }
+
+  private splitIntoChunks(text: string, maxChars: number): string[] {
+    const chunks: string[] = [];
+    // Split by Myanmar full stop (။), comma (၊), or newline.
+    const sentences = text.split(/([။၊\n])/g);
+    
+    let currentChunk = "";
+    for (let i = 0; i < sentences.length; i++) {
+      const s = sentences[i];
+      if (!s) continue;
+      
+      // If s is just a punctuation mark from the split group
+      if (s === "။" || s === "၊" || s === "\n") {
+        currentChunk += s;
+        continue;
+      }
+
+      if (currentChunk.length + s.length > maxChars) {
+        if (currentChunk.trim()) chunks.push(currentChunk.trim());
+        currentChunk = s;
+      } else {
+        currentChunk += s;
+      }
+    }
+    
+    if (currentChunk.trim()) chunks.push(currentChunk.trim());
+    return chunks;
+  }
+
+  private async generateSingleTTS(text: string, config: TTSConfig): Promise<AudioResult> {
     const voice = VOICE_OPTIONS.find(v => v.id === config.voiceId) || VOICE_OPTIONS[0];
 
+    const pitchInstruction = config.pitch > 0
+      ? `Speak with a noticeably higher pitched, brighter voice tone (+${config.pitch} semitones higher than normal). `
+      : config.pitch < 0
+      ? `Speak with a noticeably deeper, lower pitched voice tone (${config.pitch} semitones lower than normal). `
+      : '';
+
+    const styleInstruction = config.styleInstruction?.trim() || '';
+    const combinedInstruction = `${pitchInstruction}${styleInstruction}`.trim();
+
+    const textWithInstruction = combinedInstruction
+      ? `[${combinedInstruction}]\n\n${text}`
+      : text;
+
     const body = {
-      contents: [{ parts: [{ text: text }] }],
+      contents: [{ parts: [{ text: textWithInstruction }] }],
       generationConfig: {
-        responseModalities: ["AUDIO"],
+        responseModalities: [Modality.AUDIO],
         speechConfig: {
           voiceConfig: {
             prebuiltVoiceConfig: {
@@ -128,41 +246,30 @@ export class GeminiTTSService {
     };
 
     const data = await this.geminiRequest(GEMINI_MODELS.TTS, body);
-    const part = data.candidates?.[0]?.content?.parts?.[0];
-    const base64Audio = part?.inlineData?.data;
+    const audioPart = data.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+    const base64Audio = audioPart?.data;
 
     if (!base64Audio) {
       console.error('No audio in response:', JSON.stringify(data));
-      throw new Error('No audio data returned from Gemini candidates');
+      throw new Error('No audio data returned from Gemini');
     }
 
-    // [PCM to WAV CONVERSION]
-    const pcmToWavBlob = (base64: string): Blob => {
-      const pcm = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-      const sampleRate = 24000;
-      const buf = new ArrayBuffer(44 + pcm.length);
-      const view = new DataView(buf);
-      const w = (o: number, s: string) => [...s].forEach((c, i) => view.setUint8(o + i, c.charCodeAt(0)));
-      w(0, 'RIFF'); view.setUint32(4, 36 + pcm.length, true);
-      w(8, 'WAVE'); w(12, 'fmt '); view.setUint32(16, 16, true);
-      view.setUint16(20, 1, true); view.setUint16(22, 1, true);
-      view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true);
-      view.setUint16(32, 2, true); view.setUint16(34, 16, true);
-      w(36, 'data'); view.setUint32(40, pcm.length, true);
-      new Uint8Array(buf).set(pcm, 44);
-      return new Blob([buf], { type: 'audio/wav' });
-    };
-
-    const audioBlob = pcmToWavBlob(base64Audio);
+    const audioBlob = this.convertPCMToWav(base64Audio, 24000);
     const audioUrl = URL.createObjectURL(audioBlob);
     const arrayBuffer = await audioBlob.arrayBuffer();
 
-    // Duration estimation for subtitles (Baseline 1x)
     const AudioContextClass = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext) as typeof AudioContext;
     const audioContext = new AudioContextClass();
-    const decodedBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
-    const totalDuration = decodedBuffer.duration;
-    await audioContext.close();
+    let totalDuration = 0;
+    try {
+      const decodedBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+      totalDuration = decodedBuffer.duration;
+    } catch (e) {
+      console.warn("Failed to decode audio duration, using estimation", e);
+      totalDuration = text.length * 0.08;
+    } finally {
+      await audioContext.close();
+    }
 
     const subtitles = generateOptimizedSubtitles(text, totalDuration);
 
@@ -177,6 +284,80 @@ export class GeminiTTSService {
       speed: 1.0,
       duration: totalDuration
     };
+  }
+
+  private mergeAudioResults(results: AudioResult[]): AudioResult {
+    // 1. Merge PCM data
+    let totalLength = 0;
+    const pcmChunks: Uint8Array[] = [];
+    
+    for (const res of results) {
+      const binaryString = atob(res.audioData);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      pcmChunks.push(bytes);
+      totalLength += bytes.length;
+    }
+
+    const mergedPCM = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const chunk of pcmChunks) {
+      mergedPCM.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    // Convert merged PCM to Base64
+    let binary = "";
+    const len = mergedPCM.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(mergedPCM[i]);
+    }
+    const base64Audio = btoa(binary);
+
+    // 2. Merge Subtitles
+    let cumulativeTime = 0;
+    const allSubtitles: SRTSubtitle[] = [];
+    const srtParts: string[] = [];
+    
+    results.forEach((res) => {
+      res.subtitles.forEach((sub) => {
+        const start = this.parseTimestampToSeconds(sub.startTime) + cumulativeTime;
+        const end = this.parseTimestampToSeconds(sub.endTime) + cumulativeTime;
+        
+        const newSub = {
+          ...sub,
+          index: allSubtitles.length + 1,
+          startTime: formatTime(start),
+          endTime: formatTime(end)
+        };
+        allSubtitles.push(newSub);
+        srtParts.push(`${newSub.index}\n${newSub.startTime} --> ${newSub.endTime}\n${newSub.text}\n`);
+      });
+      cumulativeTime += res.duration;
+    });
+
+    const audioBlob = this.convertPCMToWav(base64Audio, 24000);
+    const audioUrl = URL.createObjectURL(audioBlob);
+
+    return {
+      audioUrl,
+      audioData: base64Audio,
+      rawAudio: mergedPCM.buffer,
+      srtContent: srtParts.join('\n'),
+      subtitles: allSubtitles,
+      baseDuration: cumulativeTime,
+      oneXDuration: cumulativeTime,
+      speed: 1.0,
+      duration: cumulativeTime
+    };
+  }
+
+  private parseTimestampToSeconds(timestamp: string): number {
+    const [hms, ms] = timestamp.split(',');
+    const [h, m, s] = hms.split(':').map(Number);
+    return h * 3600 + m * 60 + s + (Number(ms) / 1000);
   }
 
   static parseSRT(srt: string): SRTSubtitle[] {
@@ -264,39 +445,60 @@ export class GeminiTTSService {
     return (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
   }
 
-  async transcribeVideoFile(file: File): Promise<string> {
-    // 1. Upload file using File API
-    const uploadUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${this.apiKey}`;
-    
-    const uploadRes = await fetch(uploadUrl, {
-      method: 'POST',
-      headers: {
-        'X-Goog-Upload-Command': 'start, upload, finalize',
-        'X-Goog-Upload-Header-Content-Length': file.size.toString(),
-        'X-Goog-Upload-Header-Content-Type': file.type,
-        'Content-Type': 'application/octet-stream'
-      },
-      body: file
+  private async fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = (e) => reject(new Error(`File reading failed: ${e}`));
+      reader.readAsDataURL(file);
     });
+  }
 
-    if (!uploadRes.ok) {
-      throw new Error(`File upload failed: ${uploadRes.statusText}`);
+  async transcribeVideoFile(file: File): Promise<string> {
+    console.log(`[VBS Video] Starting transcription using inline base64 for: ${file.name} (${file.size} bytes)`);
+    
+    // Check for size limit (Gemini inline data limit is ~20MB)
+    const MAX_INLINE_SIZE = 20 * 1024 * 1024;
+    if (file.size > MAX_INLINE_SIZE) {
+      throw new Error(`File too large for direct processing (${(file.size / 1024 / 1024).toFixed(1)}MB). Please use a file smaller than 20MB.`);
     }
 
-    const uploadData = await uploadRes.json();
-    const fileUri = uploadData.file.uri;
+    try {
+      const base64Data = await this.fileToBase64(file);
+      console.log(`[VBS Video] File converted to base64, requesting transcription...`);
 
-    // 2. Generate transcript
-    const data = await this.geminiRequest(GEMINI_MODELS.VIDEO, {
-      contents: [{
-        parts: [
-          { fileData: { mimeType: file.type, fileUri } },
-          { text: "Transcribe this video in Myanmar language accurately." }
-        ]
-      }]
-    });
+      const body = {
+        contents: [{
+          parts: [
+            {
+              inlineData: {
+                mimeType: file.type || 'video/mp4',
+                data: base64Data
+              }
+            },
+            { text: "Transcribe this video in Myanmar language accurately. Output only the transcription text, formatted nicely." }
+          ]
+        }]
+      };
 
-    return (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
+      const data = await this.geminiRequest(GEMINI_MODELS.VIDEO, body);
+      const resultText = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
+      
+      if (!resultText) {
+        console.warn(`[VBS Video] Gemini returned empty response`);
+        return "No transcription could be generated for this video.";
+      }
+
+      console.log(`[VBS Video] Transcription successful!`);
+      return resultText;
+    } catch (error) {
+      console.error(`[VBS Video] Error in transcribeVideoFile:`, error);
+      throw error;
+    }
   }
 
   async generateImage(prompt: string): Promise<string> {

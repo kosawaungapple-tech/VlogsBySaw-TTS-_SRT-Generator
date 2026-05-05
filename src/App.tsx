@@ -1,29 +1,34 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertCircle, Wand2, Key, Settings, LogOut, ShieldCheck, CheckCircle2, History, Trash2, Music, FileText, RefreshCw, ExternalLink, Clock, Lock, ArrowRight, ChevronRight, Search, FileVideo, Clipboard, Mic2, Play, Info, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { AlertCircle, Wand2, Key, Settings, LogOut, ShieldCheck, CheckCircle2, History, Trash2, Music, FileText, RefreshCw, ExternalLink, Clock, Lock, ArrowRight, ChevronRight, Search, FileVideo, Video, Clipboard, Mic2, Play, Info, Sparkles, Image as ImageIcon, X, Calendar } from 'lucide-react';
 import { WelcomePage } from './components/WelcomePage';
 import { Header } from './components/Header';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { ContentInput } from './components/ContentInput';
-import { PronunciationRules } from './components/PronunciationRules';
 import { VoiceConfig } from './components/VoiceConfig';
 import { OutputPreview } from './components/OutputPreview';
 import { AdminDashboard } from './components/AdminDashboard';
 import { VideoTranscriber } from './components/VideoTranscriber';
 import { ThumbnailCreator } from './components/ThumbnailCreator';
+import { VideoStudio } from './components/VideoStudio';
+import { PrivacyPolicy } from './components/PrivacyPolicy';
+import { TermsOfService } from './components/TermsOfService';
 import { AnnouncementPanel } from './components/AnnouncementPanel';
 import { Modal, ModalType } from './components/Modal';
 import { GeminiTTSService } from './services/geminiService';
+import { apiChannelManager } from './services/apiChannelManager';
 import { logActivity } from './services/activityService';
 import { TTSConfig, AudioResult, PronunciationRule, HistoryItem, GlobalSettings, SystemConfig, VBSUserControl, Announcement } from './types';
+import { checkAndDeductCredits } from './services/creditService';
 import { DEFAULT_RULES } from './constants';
 import { useLanguage } from './contexts/LanguageContext';
+import { formatDate } from './utils/dateUtils';
 import { translateError } from './utils/errorUtils';
 import { pcmToWav, formatMyanmarDuration, pcmBase64ToWav, renderSpeedAdjustedAudio } from './utils/audioUtils';
 import { generateOptimizedSubtitles } from './utils/subtitleUtils';
-import { db, storage, auth, signInAnonymously, signOut, onAuthStateChanged, doc, getDocFromServer, setDoc, updateDoc, onSnapshot, handleFirestoreError, OperationType, collection, query, where, orderBy, addDoc, deleteDoc, ref, uploadString, getDownloadURL, serverTimestamp } from './firebase';
+import { db, storage, auth, signInAnonymously, signOut, onAuthStateChanged, doc, getDocFromServer, setDoc, updateDoc, onSnapshot, handleFirestoreError, OperationType, collection, query, where, orderBy, addDoc, deleteDoc, ref, uploadString, getDownloadURL, serverTimestamp, getCurrentUserId } from './firebase';
 
-type Tab = 'generate' | 'translator' | 'transcriber' | 'thumbnail' | 'history' | 'tools' | 'admin' | 'vbs-admin';
+type Tab = 'generate' | 'translator' | 'transcriber' | 'thumbnail' | 'video-studio' | 'history' | 'tools' | 'admin' | 'vbs-admin';
 
 export default function App() {
   const { language, t } = useLanguage();
@@ -31,8 +36,12 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('generate');
   const [hasEntered, setHasEntered] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
+  type UITheme = 'glassmorphism' | 'minimal' | 'neon' | 'cyberpunk';
+  const [uiTheme, setUITheme] = useState<UITheme>(() => {
+    return (localStorage.getItem('vbs_ui_theme') as UITheme) || 'glassmorphism';
+  });
   const [text, setText] = useState('');
-  const [customRules, setCustomRules] = useState('');
+  const [customRules] = useState('');
   const [saveToHistory, setSaveToHistory] = useState(false);
   const [config, setConfig] = useState<TTSConfig>({
     voiceId: 'kore',
@@ -41,6 +50,7 @@ export default function App() {
     volume: 80,
     styleInstruction: '',
   });
+  const [outputConfig, setOutputConfig] = useState({ speed: 1.0, volume: 80 });
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessingSpeed, setIsProcessingSpeed] = useState(false);
   const [result, setResult] = useState<AudioResult | null>(null);
@@ -49,19 +59,44 @@ export default function App() {
   // Sign in anonymously is restricted in the console, so we skip it for now.
   // The app will function in bypass mode using localStorage for the API Key.
   
-  const [localApiKey, setLocalApiKey] = useState<string | null>(localStorage.getItem('VLOGS_BY_SAW_API_KEY'));
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [profile, setProfile] = useState<VBSUserControl | null>(null);
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings>({
     allow_admin_keys: false,
+    sharedChannelIds: [],
     total_generations: 0,
     api_keys: ['']
   });
+
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [profile, setProfile] = useState<VBSUserControl | null>(null);
+  const [vbsId, setVbsId] = useState<string | null>(localStorage.getItem('VBS_USER_ID'));
+  const [userControl, setUserControl] = useState<VBSUserControl | null>(null);
+  const [isAccessGranted, setIsAccessGranted] = useState(() => {
+    return localStorage.getItem('vbs_access_granted') === 'true' || 
+           localStorage.getItem('vbs_access_code') === 'saw_vlogs_2026';
+  }); 
+  const [accessCode, setAccessCode] = useState<string | null>(() => localStorage.getItem('vbs_access_code'));
+  
+  const isAdminUser = useMemo(() => {
+    return profile?.role === 'admin' || userControl?.role === 'admin' || accessCode === 'saw_vlogs_2026' || vbsId === 'saw_vlogs_2026';
+  }, [profile, userControl, accessCode, vbsId]);
+  
+  const [localApiKey, setLocalApiKey] = useState<string | null>(apiChannelManager.getActiveKey(false, isAdminUser));
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setLocalApiKey(apiChannelManager.getActiveKey(false, isAdminUser));
+    };
+    handleStorageChange();
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [globalSettings, profile, userControl, isAdminUser]);
   const [engineStatus, setEngineStatus] = useState<'ready' | 'cooling' | 'limit'>('ready');
   const [retryCountdown, setRetryCountdown] = useState(0);
   const [isConfigLoading, setIsConfigLoading] = useState(false); // Default to false to bypass loading screen if env vars missing
   const [isAdminRoute, setIsAdminRoute] = useState(window.location.pathname === '/vbs-admin');
   const [isAdminConfigRoute, setIsAdminConfigRoute] = useState(window.location.pathname === '/vbs-admin-config');
+  const [isPrivacyRoute, setIsPrivacyRoute] = useState(window.location.pathname === '/privacy-policy');
+  const [isTermsRoute, setIsTermsRoute] = useState(window.location.pathname === '/terms-of-service');
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isSessionSynced, setIsSessionSynced] = useState(false);
 
@@ -76,8 +111,9 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [isAuthReady]);
 
-  const [vbsId, setVbsId] = useState<string | null>(localStorage.getItem('VBS_USER_ID'));
-  const [userControl, setUserControl] = useState<VBSUserControl | null>(null);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const [channelsExhausted, setChannelsExhausted] = useState(false);
+  
   const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   useEffect(() => {
@@ -90,7 +126,11 @@ export default function App() {
 
   // Use this for global notifications or debug
   useEffect(() => {
-    if (vbsId && isAuthReady && auth.currentUser) {
+    // Requirement 3: Allow fetch for both real users AND anonymous users with access granted
+    // This ensures the Transcribe button works for users logged in via Access Code
+    const canFetch = vbsId && isAuthReady && auth.currentUser && (isAccessGranted || !auth.currentUser.isAnonymous);
+    
+    if (canFetch) {
       const unsubscribe = onSnapshot(doc(db, 'user_controls', vbsId), (docSnap) => {
         if (docSnap.exists()) {
           setUserControl(docSnap.data() as VBSUserControl);
@@ -98,23 +138,38 @@ export default function App() {
           const initialControl: VBSUserControl = {
             vbsId,
             dailyUsage: 0,
+            credits: globalSettings.welcome_credits || 5,
             lastUsedDate: new Date().toDateString(),
             isUnlimited: false,
             isBlocked: false,
             membershipStatus: 'standard',
             updatedAt: serverTimestamp()
           } as unknown as VBSUserControl;
-          setDoc(doc(db, 'user_controls', vbsId), initialControl).catch(err => {
-            console.error("Failed to initialize user control:", err);
-          });
+          
+          // Guard: Never write with anonymous or null user
+          const authUserId = getCurrentUserId();
+          if (authUserId) {
+            setDoc(doc(db, 'user_controls', vbsId), initialControl).catch(err => {
+              console.error("Failed to initialize user control:", err);
+            });
+          } else {
+            console.warn('[VBS] Skipping user_controls initialization — anonymous user');
+          }
           setUserControl(initialControl);
         }
       }, (error) => {
-        handleFirestoreError(error, OperationType.GET, `user_controls/${vbsId}`);
+        // If it's a permission error, we might still be syncing session doc
+        if (isSessionSynced) {
+          handleFirestoreError(error, OperationType.GET, `user_controls/${vbsId}`);
+        } else {
+          console.log('[VBS] Profile fetch error (expected during sync):', error.message);
+        }
       });
       return () => unsubscribe();
+    } else if (vbsId && isAuthReady && auth.currentUser) {
+      console.log('[VBS] Auth ready, waiting for session sync if needed...');
     }
-  }, [vbsId, isAuthReady]);
+  }, [vbsId, isAuthReady, auth.currentUser, isSessionSynced]);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -122,6 +177,9 @@ export default function App() {
   }, []);
 
   const isUsingAdminKey = useMemo(() => {
+    // 0. Priority bypass for Admins
+    if (isAdminUser) return true;
+
     // Personal checks
     if (localStorage.getItem('VLOGS_BY_SAW_API_KEY')) return false;
     if (profile?.api_key_stored) return false;
@@ -139,15 +197,18 @@ export default function App() {
   }, [profile, globalSettings]);
 
   const getEffectiveApiKey = useCallback(() => {
-    // Priority -1: Immediate LocalStorage fetch (Strict persistence for Admin)
-    const immediateLocalKey = localStorage.getItem('VLOGS_BY_SAW_API_KEY');
+    // Priority -1: Immediate Channel Manager fetch
+    const immediateLocalKey = apiChannelManager.getActiveKey(false, isAdminUser);
     if (immediateLocalKey && immediateLocalKey.trim()) {
-      return immediateLocalKey.trim();
+      return immediateLocalKey;
     }
 
     // [ADMIN PREMIUM KEY PRIORITY - COMMANDER ORDER]
-    // If the toggle is ON, we bypass everything and use admin keys directly.
-    if (isUsingAdminKey && globalSettings.allow_admin_keys) {
+    // If the toggle is ON OR the user is an admin, prioritize admin pool.
+    const userAllowedAdminKey = profile?.allowAdminKey === true || isAdminUser;
+    const canAccessAdminPool = globalSettings.allow_admin_keys || isAdminUser;
+
+    if (isUsingAdminKey && canAccessAdminPool && userAllowedAdminKey) {
       const adminKeys = [
         globalSettings.primary_key || '',
         globalSettings.secondary_key || '',
@@ -155,7 +216,7 @@ export default function App() {
       ].filter(k => k.trim());
 
       if (adminKeys.length > 0) {
-        console.log("App: Bypassing local storage - Using Admin Premium Keys (Toggle is ON)");
+        console.log("App: Prioritizing Admin Pool (Admin User or Toggle ON)");
         return adminKeys.join(',');
       }
     }
@@ -166,8 +227,8 @@ export default function App() {
       return profile.api_key_stored.trim();
     }
     
-    // 2. Fallback to Global System Keys (if enabled)
-    if (globalSettings.allow_admin_keys) {
+    // 2. Fallback to Global System Keys (if enabled or if Admin)
+    if (canAccessAdminPool) {
       const keys = [
         globalSettings.primary_key || '',
         globalSettings.secondary_key || '',
@@ -205,13 +266,39 @@ export default function App() {
   const [accessCodeInput, setAccessCodeInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [isStepTwo, setIsStepTwo] = useState(false);
-  const [isAccessGranted, setIsAccessGranted] = useState(() => {
-    return localStorage.getItem('vbs_access_granted') === 'true' || 
-           localStorage.getItem('vbs_access_code') === 'saw_vlogs_2026';
-  }); 
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
-  const [accessCode, setAccessCode] = useState<string | null>(() => localStorage.getItem('vbs_access_code'));
-  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+
+  useEffect(() => {
+    const handleSwitch = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      showToast(detail.message, 'success');
+    };
+    const handleExhausted = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setChannelsExhausted(true);
+      showToast(detail.message, 'error');
+    };
+
+    window.addEventListener('channel-switch', handleSwitch);
+    window.addEventListener('channels-exhausted', handleExhausted);
+    
+    return () => {
+      window.removeEventListener('channel-switch', handleSwitch);
+      window.removeEventListener('channels-exhausted', handleExhausted);
+    };
+  }, [showToast]);
+
+  // Request notification permission on first interaction
+  useEffect(() => {
+    const requestPermission = () => {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+      window.removeEventListener('click', requestPermission);
+    };
+    window.addEventListener('click', requestPermission);
+    return () => window.removeEventListener('click', requestPermission);
+  }, []);
 
   // Modal State
   const [modal, setModal] = useState<{
@@ -257,9 +344,20 @@ export default function App() {
 
   // Handle Anonymous Auth
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setIsAuthReady(true);
+        
+        // Requirement: Set synced immediately if user is logged in
+        // We allow it for anonymous users too if they have a stored access code
+        const code = localStorage.getItem('vbs_access_code');
+        if (code === 'saw_vlogs_2026') {
+          console.log('[VBS] Master Admin detected, setting session synced immediately');
+          setIsSessionSynced(true);
+        } else if (code) {
+          console.log('[VBS] User with stored access code detected, setting session synced proactively');
+          setIsSessionSynced(true);
+        }
       } else {
         signInAnonymously(auth).then((result) => {
           if (result.user) {
@@ -267,7 +365,6 @@ export default function App() {
           }
         }).catch((err) => {
           console.error("Failed to sign in anonymously (Silent Auth Fallback):", err);
-          // Don't set isAuthReady to true if it failed, stay in loading state
         });
       }
     });
@@ -279,6 +376,8 @@ export default function App() {
       const path = window.location.pathname;
       setIsAdminRoute(path === '/vbs-admin');
       setIsAdminConfigRoute(path === '/vbs-admin-config');
+      setIsPrivacyRoute(path === '/privacy-policy');
+      setIsTermsRoute(path === '/terms-of-service');
     };
     
     handleLocationChange();
@@ -288,34 +387,47 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode);
-  }, [isDarkMode]);
+    document.documentElement.classList.remove('theme-minimal', 'theme-neon', 'theme-cyberpunk');
+    if (uiTheme !== 'glassmorphism') {
+      document.documentElement.classList.add(`theme-${uiTheme}`);
+    }
+    localStorage.setItem('vbs_ui_theme', uiTheme);
+  }, [isDarkMode, uiTheme]);
 
   // Ensure session document exists for security rules
   useEffect(() => {
+    // We allow session sync for both real users AND anonymous users who have granted access
+    // This is because the "Access Code" is the primary login method in this app
     if (isAccessGranted && isAuthReady && auth.currentUser && accessCode) {
+      setIsSessionSynced(true);
+
       const syncSession = async () => {
+        const authUserId = getCurrentUserId();
+        if (!authUserId) return;
+
         try {
-          await setDoc(doc(db, 'sessions', auth.currentUser!.uid), {
+          await setDoc(doc(db, 'sessions', authUserId), {
             accessCode: accessCode,
             createdAt: serverTimestamp()
           });
-          
-          console.log('Session synced for access code:', accessCode);
-          setIsSessionSynced(true);
+          console.log('[VBS] Session synced in background for:', accessCode);
         } catch (e) {
-          console.error('Failed to sync session:', e);
-          setIsSessionSynced(false);
+          console.warn('[VBS] Background session sync failed:', e);
         }
       };
       syncSession();
     } else {
       setIsSessionSynced(false);
     }
-  }, [isAccessGranted, isAuthReady, accessCode]);
+  }, [isAccessGranted, isAuthReady, accessCode, auth.currentUser]);
 
   // Check for existing session
   useEffect(() => {
     if (!isAuthReady || !auth.currentUser) return;
+    
+    // Proactive check: If owner, we can proceed even before session sync
+    const isOwner = localStorage.getItem('vbs_access_code') === 'saw_vlogs_2026';
+    if (!isSessionSynced && !isOwner) return;
 
     const granted = localStorage.getItem('vbs_access_granted') === 'true';
     const code = localStorage.getItem('vbs_access_code');
@@ -328,6 +440,11 @@ export default function App() {
         if (snapshot.exists()) {
           const data = snapshot.data() as VBSUserControl;
           setProfile(data);
+          
+          // Sync API Key from Firestore to Channel Manager
+          if (data.api_key_stored) {
+            apiChannelManager.setUserChannel(data.api_key_stored);
+          }
           
           // Sync API Key from Firestore to LocalStorage if missing locally
           if (data.api_key_stored && !localStorage.getItem('VLOGS_BY_SAW_API_KEY')) {
@@ -357,7 +474,14 @@ export default function App() {
         // Sometimes Firestore rules have slight propagation delay
       });
     }
-  }, [isAuthReady]);
+  }, [isAuthReady, isSessionSynced]);
+
+  // Initialize API Channel Sync
+  useEffect(() => {
+    if (isAuthReady && auth.currentUser) {
+      apiChannelManager.initializeRealtimeSync();
+    }
+  }, [isAuthReady, auth.currentUser]);
 
   // Listen for Global Settings
   useEffect(() => {
@@ -386,7 +510,35 @@ export default function App() {
           }
         }
 
+        // First, sync master settings to singleton
+        apiChannelManager.updateSettings({ 
+          allowSharedKeys: data.allow_admin_keys,
+          sharedChannelIds: data.sharedChannelIds || []
+        });
+
+        const currentIsAdmin = profile?.role === 'admin' || userControl?.role === 'admin' || accessCode === 'saw_vlogs_2026' || vbsId === 'saw_vlogs_2026';
+        const isUserPremium = profile?.membershipStatus === 'premium' || currentIsAdmin;
+        const hasPersonalKey = !!localStorage.getItem('VLOGS_BY_SAW_API_KEY') || !!profile?.api_key_stored;
+
+        // If admin disabled pool OR user is no longer premium, force normal users back to personal mode
+        // Admin users ALWAYS bypass this check
+        if (!currentIsAdmin && (!data.allow_admin_keys || !isUserPremium) && apiChannelManager.getSettings().useAdminKeys) {
+          console.log("App: Admin Pool restricted, forcing user to Personal Mode");
+          apiChannelManager.updateSettings({ useAdminKeys: false });
+          // Clear cached preferences
+          localStorage.removeItem('useAdminKeyPool');
+          localStorage.setItem('useAdminKeyPool', 'false'); // Double safeguard
+        } 
+        // If pool is enabled, user is premium, and has NO personal key, auto-enable Admin Pool
+        else if (!currentIsAdmin && data.allow_admin_keys && isUserPremium && !hasPersonalKey && !apiChannelManager.getSettings().useAdminKeys) {
+          console.log("App: Admin Pool enabled and user is premium with no personal key. Auto-switching...");
+          apiChannelManager.updateSettings({ useAdminKeys: true });
+          localStorage.setItem('useAdminKeyPool', 'true');
+        }
+
+        // Then update React state to trigger UI render
         setGlobalSettings(data);
+        
         setIsConfigLoading(false);
       } else {
         // Fallback for settings if doc doesn't exist yet
@@ -416,7 +568,7 @@ export default function App() {
       setIsConfigLoading(false);
     });
     return () => unsubscribe();
-  }, [isAccessGranted, isAuthReady]);
+  }, [isAccessGranted, isAuthReady, profile]);
 
   // Listen for System Config
   useEffect(() => {
@@ -436,7 +588,7 @@ export default function App() {
 
   // Listen for Global Rules
   useEffect(() => {
-    if (!isAccessGranted || !isAuthReady || !auth.currentUser) {
+    if (!isAccessGranted || !isAuthReady || !auth.currentUser || auth.currentUser.isAnonymous) {
       setGlobalRules([]);
       return;
     }
@@ -452,7 +604,7 @@ export default function App() {
 
   // Fetch History
   useEffect(() => {
-    if (isAccessGranted && isAuthReady && auth.currentUser && accessCode && activeTab === 'history') {
+    if (isAccessGranted && isAuthReady && auth.currentUser && !auth.currentUser.isAnonymous && accessCode && activeTab === 'history') {
       setIsHistoryLoading(true);
       const q = query(collection(db, 'history'), where('userId', '==', accessCode), orderBy('createdAt', 'desc'));
       const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -469,7 +621,7 @@ export default function App() {
 
   // Seed default admin if collection is empty
   useEffect(() => {
-    if (!isAuthReady || !auth.currentUser) return;
+    if (!isAuthReady || !auth.currentUser || auth.currentUser.isAnonymous) return;
     const seedDefaultAdmin = async () => {
       try {
         // Seed SAW-ADMIN-2026
@@ -488,7 +640,9 @@ export default function App() {
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           };
-          await setDoc(doc(db, 'user_controls', defaultAdmin.vbsId), defaultAdmin);
+          if (getCurrentUserId()) {
+            await setDoc(doc(db, 'user_controls', defaultAdmin.vbsId), defaultAdmin);
+          }
         }
 
         // Seed saw_vlogs_2026 as master admin
@@ -507,7 +661,9 @@ export default function App() {
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           };
-          await setDoc(doc(db, 'user_controls', masterAdmin.vbsId), masterAdmin);
+          if (getCurrentUserId()) {
+            await setDoc(doc(db, 'user_controls', masterAdmin.vbsId), masterAdmin);
+          }
         }
         console.log('Admin seeding check completed.');
       } catch (err) {
@@ -660,50 +816,13 @@ export default function App() {
     );
   }, [history, historySearch]);
 
-  const handleClearApiKey = () => {
-    localStorage.removeItem('VLOGS_BY_SAW_API_KEY');
-    setLocalApiKey(null);
-    setToast({ message: 'API Key အောင်မြင်စွာ ဖျက်လိုက်ပါပြီ။ (API Key cleared successfully!)', type: 'success' });
-    setTimeout(() => setToast(null), 3000);
-  };
-
-  const handleSaveApiKeyFromModal = async (key: string) => {
-    const trimmedKey = key.trim();
-    try {
-      // 1. Save to Local Storage ONLY as per safety requirements
-      localStorage.setItem('VLOGS_BY_SAW_API_KEY', trimmedKey);
-      setLocalApiKey(trimmedKey);
-      
-      setToast({ message: 'ဆက်တင်များကို သိမ်းဆည်းပြီးပါပြီ။ (Settings saved successfully!)', type: 'success' });
-      setTimeout(() => setToast(null), 3000);
-    } catch (err: unknown) {
-      console.error('Save API Key Error:', err);
-      setToast({ message: 'Failed to save API Key', type: 'error' });
-      setTimeout(() => setToast(null), 3000);
-    } finally {
-      // Done setting key
-    }
-  };
-
   const handleGenerate = async () => {
+    setOutputConfig({ speed: config.speed, volume: config.volume });
     console.log("App: Generate Voice Button Clicked");
     
     if (!text.trim()) {
       setError('Please enter some text to generate voiceover.');
       return;
-    }
-
-    // Check Expiry
-    if (profile?.expiryDate) {
-      const expiry = new Date(profile.expiryDate);
-      if (expiry < new Date()) {
-        console.warn('Access Code has expired during session');
-        setError('Your account has expired. Please contact Admin Saw for renewal.');
-        setIsAccessGranted(false);
-        localStorage.removeItem('vbs_access_granted');
-        localStorage.removeItem('vbs_access_code');
-        return;
-      }
     }
 
     // [SINGLE-PASS ESTIMATION - COMMANDER ORDER]
@@ -735,9 +854,26 @@ export default function App() {
 
     console.log("App: Starting voiceover generation process with key...");
 
+    const activeInfo = apiChannelManager.getActiveSourceInfo();
+    const isShared = activeInfo?.isShared || false;
+
+    // Credit Check - Only if using shared admin key
+    // [CREDIT ENFORCEMENT - COMMANDER ORDER]
+    // Only check if using shared key and not admin
+    if (!isVbsAdmin && isShared && userControl?.vbsId) {
+      const creditResult = await checkAndDeductCredits(userControl.vbsId, 'tts');
+      if (!creditResult.success) {
+        showToast(creditResult.message || "Credit ကုန်ဆုံးသွားပါပြီ။", 'error');
+        return;
+      }
+    }
+
     const runGeneration = async (retryAttempt = 0): Promise<void> => {
       try {
-        const ttsService = new GeminiTTSService(effectiveKey);
+        // if we have a local key or managed settings, let the service handle auto-switch/rotation
+        // by passing an empty key if it's managed by apiChannelManager
+        const useManaged = isAdminUser || apiChannelManager.getSettings().useAdminKeys;
+        const ttsService = new GeminiTTSService(useManaged ? '' : effectiveKey, isAdminUser);
         
         const currentController = new AbortController();
         setAbortController(currentController);
@@ -763,14 +899,23 @@ export default function App() {
           }
         });
 
-        // [SINGLE-PASS ESTIMATION - COMMANDER ORDER]
-        // Gemini 1.5 Flash uses single-pass with no recursive sync loops
+        // [CHUNKED GENERATION - PERFORMANCE OPTIMIZATION]
+        // Split into chunks and generate in parallel for much faster results
         const generationPromise = ttsService.generateTTS(
           processedText, 
-          { ...config }
+          { ...config },
+          (firstChunk) => {
+            // Callback: Play first chunk immediately for responsiveness
+            console.log("App: First chunk ready, setting temporary preview...");
+            // We only show this if the main result isn't ready yet
+            setResult(prev => prev ? prev : {
+              ...firstChunk,
+              isLoadingPartial: true 
+            } as AudioResult);
+          }
         );
 
-        console.log(`App: Calling TTS service with Single-Pass logic...`);
+        console.log(`App: Calling TTS service with parallel chunking logic...`);
         
         const audioResult = await generationPromise;
         
@@ -836,6 +981,10 @@ export default function App() {
 
         if (saveToHistory && accessCode) {
           const saveHistory = async () => {
+            if (!getCurrentUserId()) {
+              console.warn('[VBS] Skipping history save — anonymous user');
+              return;
+            }
             try {
               const audioFileName = `audio/${accessCode}/${Date.now()}.wav`;
               const audioRef = ref(storage, audioFileName);
@@ -926,6 +1075,10 @@ export default function App() {
       type: 'confirm',
       confirmText: 'Delete',
       onConfirm: async () => {
+        if (!getCurrentUserId()) {
+          console.warn('[VBS] Skipping history delete — anonymous user');
+          return;
+        }
         try {
           await deleteDoc(doc(db, 'history', id));
           setToast({ message: 'History deleted successfully!', type: 'success' });
@@ -1052,10 +1205,19 @@ export default function App() {
     }
   };
 
-  const isVbsAdmin = useMemo(() => {
-    const ADMIN_CODE = import.meta.env.VITE_ADMIN_ACCESS_CODE || 'saw_vlogs_2026';
-    return accessCode === ADMIN_CODE;
-  }, [accessCode]);
+  const isVbsAdmin = isAdminUser;
+
+  const ttsCost = globalSettings.tts_cost || 1;
+
+  const apiKeyStatus = useMemo(() => {
+    const info = apiChannelManager.getActiveSourceInfo();
+    if (!info) return { state: 'none', label: 'No API Key', isShared: false } as const;
+    return {
+      state: info.isShared ? 'admin' : 'personal',
+      label: info.isShared ? 'Admin Key Pool Active' : 'Personal Key Active',
+      isShared: info.isShared
+    } as const;
+  }, [localApiKey, globalSettings.allow_admin_keys]);
 
   const isExpired = useMemo(() => {
     if (!userControl?.expiryDate || isVbsAdmin) return false;
@@ -1071,7 +1233,7 @@ export default function App() {
   }, [userControl?.expiryDate, isVbsAdmin]);
 
   const isPremium = isVbsAdmin || (userControl?.membershipStatus === 'premium' && !isExpired);
-  const canUseThumbnail = isVbsAdmin || (isPremium && !!globalSettings.allow_thumbnail_admin_key);
+  const canUseThumbnail = isPremium;
 
   useEffect(() => {
     if (isExpired && userControl?.isUnlimited) {
@@ -1093,7 +1255,7 @@ export default function App() {
     }
   }, [isLoading, result, activeTab]);
 
-  const NavTab = ({ icon, label, tooltip, onClick, active, locked = false }: {
+  const NavTab = ({ icon, label, tooltip, onClick, active, locked = false, badge }: {
     id: Tab;
     icon: React.ReactNode;
     label: string;
@@ -1101,6 +1263,7 @@ export default function App() {
     onClick: () => void;
     active: boolean;
     locked?: boolean;
+    badge?: string;
   }) => {
     const [isHovered, setIsHovered] = useState(false);
     
@@ -1122,6 +1285,11 @@ export default function App() {
           <span className={`${active ? 'inline' : 'hidden sm:inline'} text-[10px] sm:text-xs tracking-tight whitespace-nowrap`}>
             {label}
           </span>
+          {badge && (
+            <span className="absolute -top-1 -right-1 bg-violet-500 text-white text-[8px] px-1.5 py-0.5 rounded-full font-black scale-90 sm:scale-100 shadow-lg shadow-violet-500/20">
+              {badge}
+            </span>
+          )}
           
           {active && (
             <div className="absolute inset-0 bg-brand-purple/20 blur-xl rounded-full -z-10" />
@@ -1158,14 +1326,40 @@ export default function App() {
       <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-brand-purple/10 blur-[120px] rounded-full -z-10 animate-pulse-soft" />
       <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-neon-magenta/10 blur-[120px] rounded-full -z-10 animate-pulse-soft" />
       
+      {/* Channels Exhausted Banner */}
+      <AnimatePresence>
+        {channelsExhausted && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="bg-rose-600 text-white py-2 px-4 text-center text-sm font-bold flex items-center justify-center gap-3 sticky top-0 z-[110]"
+          >
+            <span>All API channels exhausted. Please add a new Gemini API key in Settings.</span>
+            <button 
+              onClick={() => setIsApiKeyModalOpen(true)}
+              className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-xs transition-colors"
+            >
+              Adjust Settings
+            </button>
+            <button 
+              onClick={() => setChannelsExhausted(false)}
+              className="p-1 hover:bg-white/20 rounded"
+            >
+              <X size={14} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <Header 
         isDarkMode={isDarkMode} 
         toggleTheme={() => setIsDarkMode(!isDarkMode)} 
-        onOpenTools={() => setIsApiKeyModalOpen(true)}
+        uiTheme={uiTheme}
+        onThemeChange={setUITheme}
         isAccessGranted={isAccessGranted}
         isAdmin={isVbsAdmin}
-        onLogout={handleLogout}
-        profile={profile}
+        apiKeyStatus={apiKeyStatus}
         userControl={userControl}
       />
 
@@ -1174,17 +1368,19 @@ export default function App() {
       )}
 
       <main className="flex-1 container mx-auto px-4 sm:px-6 py-6 sm:py-8 overflow-x-hidden">
-        <div className="mb-8 text-center sm:text-left">
-          <h1 className="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white mb-2 flex items-center justify-center sm:justify-start gap-3">
-            Vlogs By Saw
-            <span className="text-xs bg-brand-purple/10 text-brand-purple px-3 py-1 rounded-full uppercase tracking-tighter shadow-sm border border-brand-purple/20">
-              Premium AI Narration
-            </span>
-          </h1>
-          <p className="text-slate-500 dark:text-slate-400 font-medium max-w-2xl">
-            Professional Burmese Storytelling & Cinematic AI Voiceover Studio. Engineered for high-end recap content.
-          </p>
-        </div>
+        {!(isPrivacyRoute || isTermsRoute) && (
+          <div className="mb-8 text-center sm:text-left">
+            <h1 className="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white mb-2 flex items-center justify-center sm:justify-start gap-3">
+              Vlogs By Saw
+              <span className="text-xs bg-brand-purple/10 text-brand-purple px-3 py-1 rounded-full uppercase tracking-tighter shadow-sm border border-brand-purple/20">
+                Premium AI Narration
+              </span>
+            </h1>
+            <p className="text-slate-500 dark:text-slate-400 font-medium max-w-2xl">
+              Professional Burmese Storytelling & Cinematic AI Voiceover Studio. Engineered for high-end recap content.
+            </p>
+          </div>
+        )}
 
         {isConfigLoading ? (
           <div className="flex flex-col items-center justify-center py-40">
@@ -1231,6 +1427,20 @@ export default function App() {
             }}
             configOnly={isAdminConfigRoute}
             isSessionSynced={isSessionSynced}
+          />
+        ) : isPrivacyRoute ? (
+          <PrivacyPolicy 
+            onBack={() => {
+              window.history.pushState({}, '', '/');
+              setIsPrivacyRoute(false);
+            }} 
+          />
+        ) : isTermsRoute ? (
+          <TermsOfService 
+            onBack={() => {
+              window.history.pushState({}, '', '/');
+              setIsTermsRoute(false);
+            }} 
           />
         ) : !isAccessGranted ? (
           <div className="flex flex-col items-center justify-center py-20 text-center px-4">
@@ -1355,6 +1565,15 @@ export default function App() {
                 locked={!canUseThumbnail}
               />
               <NavTab
+                id="video-studio"
+                active={activeTab === 'video-studio'}
+                onClick={() => setActiveTab('video-studio')}
+                icon={<Video size={18} />}
+                label="Video Studio"
+                tooltip="AI-Powered Video Enhancement (Coming Soon)"
+                badge="SOON"
+              />
+              <NavTab
                 id="history"
                 active={activeTab === 'history'}
                 onClick={() => setActiveTab('history')}
@@ -1386,25 +1605,19 @@ export default function App() {
                     <ContentInput 
                       text={text} 
                       setText={setText} 
-                      isDarkMode={isDarkMode} 
                       getApiKey={getEffectiveApiKey}
                       showToast={showToast}
                       engineStatus={engineStatus}
                       retryCountdown={retryCountdown}
                       speed={config.speed}
                       hasResult={!!result}
+                      isAdmin={isAdminUser}
+                      userControl={userControl}
+                      isSharedKey={apiKeyStatus.isShared}
+                      rewriteCost={globalSettings.rewrite_cost}
                     />
                     
-                    {/* Default Pronunciation Rules Table */}
-                    <PronunciationRules
-                      rules={DEFAULT_RULES}
-                      globalRules={globalRules}
-                      customRules={customRules}
-                      setCustomRules={setCustomRules}
-                      isAdmin={profile?.role === 'admin'}
-                      onOpenTools={() => setIsApiKeyModalOpen(true)}
-                      showCustomRules={false}
-                    />
+
 
                     {error && (
                       <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-start gap-3 text-red-500">
@@ -1420,7 +1633,7 @@ export default function App() {
                       config={config} 
                       setConfig={setConfig} 
                       isDarkMode={isDarkMode} 
-                      isAdmin={profile?.role === 'admin'}
+                      isAdmin={isAdminUser}
                       baseDuration={result?.oneXDuration}
                     />
 
@@ -1513,9 +1726,15 @@ export default function App() {
                             <RefreshCw size={24} className="animate-spin-slow" /> Retry Generation
                           </>
                         ) : (
-                          <>
-                            <Wand2 size={24} /> {t('generate.generateBtn')}
-                          </>
+                          <div className="flex items-center gap-4">
+                            <Wand2 size={24} /> 
+                            {t('generate.generateBtn')}
+                            {!isVbsAdmin && (
+                              <span className="text-xs bg-white/20 px-3 py-1 rounded-lg font-black tracking-tighter">
+                                {apiKeyStatus.isShared ? `${ttsCost} Credits` : 'FREE'}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </button>
                       <div className="flex flex-col items-center">
@@ -1544,12 +1763,12 @@ export default function App() {
                               className="mt-8"
                             >
                               <OutputPreview 
-                                playbackSpeed={config.speed}
+                                playbackSpeed={outputConfig.speed}
                                 result={result} 
                                 isLoading={isLoading} 
                                 error={error}
                                 onRetry={() => handleGenerate()}
-                                globalVolume={config.volume}
+                                globalVolume={outputConfig.volume}
                                 engineStatus={engineStatus}
                                 retryCountdown={retryCountdown}
                                 showToast={showToast}
@@ -1605,8 +1824,9 @@ export default function App() {
                       showToast={showToast}
                       isAdmin={isVbsAdmin}
                       userControl={userControl}
-                      isUsingAdminKey={isUsingAdminKey}
+                      isSharedKey={apiKeyStatus.isShared}
                       allowVideoRecapAdminKey={globalSettings.allow_video_recap_admin_key}
+                      recapCost={globalSettings.recap_cost}
                     />
                   )}
                 </motion.div>
@@ -1625,8 +1845,18 @@ export default function App() {
                      getApiKey={getEffectiveApiKey}
                      isAdmin={isVbsAdmin}
                      isPremium={isPremium}
-                     allowThumbnailAdminKey={globalSettings.allow_thumbnail_admin_key}
                    />
+                </motion.div>
+              )}
+
+              {activeTab === 'video-studio' && (
+                <motion.div
+                  key="video-studio"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                >
+                  <VideoStudio isAdmin={isVbsAdmin} />
                 </motion.div>
               )}
 
@@ -1692,7 +1922,7 @@ export default function App() {
                                   </span>
                                   <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest">
                                     <Clock size={12} />
-                                    {new Date(item.createdAt).toLocaleString()}
+                                    {formatDate(item.createdAt)}
                                   </div>
                                   {(item.duration || item.baseDuration) > 0 && (
                                     <div className="flex items-center gap-2 text-[10px] text-brand-purple font-bold uppercase tracking-widest bg-brand-purple/5 px-2 py-0.5 rounded-full border border-brand-purple/10">
@@ -1788,6 +2018,14 @@ export default function App() {
                             <ShieldCheck size={16} className="text-brand-purple" />
                             {isPremium ? (language === 'mm' ? 'အဆင့်မြင့် (Premium) အသုံးပြုသူ' : 'Premium Access Active') : (language === 'mm' ? 'သာမန် (Standard) အသုံးပြုသူ' : 'Standard User')}
                           </div>
+                          <div className="flex items-center gap-2 text-sm font-medium">
+                            <Calendar size={16} className="text-brand-purple" />
+                            {userControl?.expiryDate ? (
+                              `${t('settings.expiry')} - ${new Date(userControl.expiryDate).toLocaleDateString(language === 'mm' ? 'my-MM' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                            ) : (
+                              `${t('settings.expiry')} - ${t('settings.unlimited')}`
+                            )}
+                          </div>
                         </div>
                         
                         <div className="pt-6 flex flex-col sm:flex-row gap-4">
@@ -1799,6 +2037,104 @@ export default function App() {
                           </button>
                         </div>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Credits/Usage Card */}
+                  <div className="glass-card rounded-[24px] p-6 sm:p-8 shadow-2xl transition-all duration-300">
+                    <div className="flex flex-col gap-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-[#F5C518]/10 rounded-xl flex items-center justify-center text-[#F5C518]">
+                            <FileVideo size={20} />
+                          </div>
+                          <div>
+                            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">နေ့စဉ် Video Credits</h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Track your daily video transcription usage</p>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1.5">
+                          {isVbsAdmin ? (
+                            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-tighter bg-[#F5C518]/20 text-[#F5C518] border border-[#F5C518]/30 shadow-[0_0_15px_rgba(245,197,24,0.3)] uppercase">
+                              <ShieldCheck size={10} /> Admin — Unlimited Access
+                            </span>
+                          ) : userControl?.vbsId === "saw_vlogs_2026" ? (
+                            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-tighter bg-[#F5C518]/20 text-[#F5C518] border border-[#F5C518]/30 shadow-[0_0_15px_rgba(245,197,24,0.3)]">
+                              <ShieldCheck size={10} /> OWNER — UNLIMITED ACCESS
+                            </span>
+                          ) : (
+                            <>
+                              {userControl?.isUnlimited && (
+                                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-tighter bg-[#F5C518]/20 text-[#F5C518] border border-[#F5C518]/30 shadow-[0_0_15px_rgba(245,197,24,0.2)]">
+                                  <Sparkles size={10} /> UNLIMITED ACCESS
+                                </span>
+                              )}
+                              {userControl?.admin_override_active && (
+                                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-tighter bg-cyan-500/20 text-cyan-500 border border-cyan-500/30">
+                                  <Info size={10} /> Admin မှ တိုးချဲ့ပေးထားသည်
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {!isVbsAdmin && userControl?.vbsId !== "saw_vlogs_2026" && (
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-end">
+                            <div className="space-y-1">
+                              <span className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                                {(() => {
+                                  const today = new Date().toISOString().split("T")[0];
+                                  const isNewDay = userControl?.lastVideoDate !== today;
+                                  return isNewDay ? 0 : (userControl?.videosGeneratedToday || 0);
+                                })()} / {userControl?.isUnlimited ? '∞' : (userControl?.dailyVideoLimit || 2)}
+                              </span>
+                              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">videos used today</p>
+                            </div>
+                            <div className="text-right">
+                              {(() => {
+                                if (userControl?.isUnlimited) {
+                                  return <span className="text-xs font-bold text-[#F5C518]">Unlimited Video Access</span>;
+                                }
+                                const today = new Date().toISOString().split("T")[0];
+                                const isNewDay = userControl?.lastVideoDate !== today;
+                                const used = isNewDay ? 0 : (userControl?.videosGeneratedToday || 0);
+                                const limit = userControl?.dailyVideoLimit || 2;
+                                return used >= limit ? (
+                                  <span className="text-xs font-bold text-rose-500">ယနေ့ Video အကန့်အသတ် ပြည့်သွားပြီ</span>
+                                ) : (
+                                  <span className="text-xs font-bold text-emerald-500">
+                                    ကျန်ရှိသည် {limit - used} video
+                                  </span>
+                                );
+                              })()}
+                            </div>
+                          </div>
+
+                          <div className="h-3 w-full bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden border border-slate-200 dark:border-white/10 p-0.5">
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ 
+                                width: userControl?.isUnlimited ? '100%' : `${Math.min(100, ((userControl?.lastVideoDate !== new Date().toISOString().split("T")[0] ? 0 : (userControl?.videosGeneratedToday || 0)) / (userControl?.dailyVideoLimit || 2)) * 100)}%` 
+                              }}
+                              className={`h-full rounded-full transition-colors duration-500 ${
+                                (() => {
+                                  if (userControl?.isUnlimited) return 'bg-[#F5C518] shadow-[0_0_10px_rgba(245,197,24,0.4)]';
+                                  const today = new Date().toISOString().split("T")[0];
+                                  const isNewDay = userControl?.lastVideoDate !== today;
+                                  const used = isNewDay ? 0 : (userControl?.videosGeneratedToday || 0);
+                                  const limit = userControl?.dailyVideoLimit || 2;
+                                  const ratio = used / limit;
+                                  if (ratio >= 1) return 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.4)]';
+                                  if (ratio >= 0.7) return 'bg-[#F5C518] shadow-[0_0_10px_rgba(245,197,24,0.4)]';
+                                  return 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]';
+                                })()
+                              }`}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1818,9 +2154,56 @@ export default function App() {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <div className={`flex items-center gap-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest ${localApiKey ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                          <div className={`w-2.5 h-2.5 rounded-full ${localApiKey ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
-                          {localApiKey ? 'CONNECTED' : 'No API Key found'}
+                        <div className={(function() {
+                          const info = apiChannelManager.getActiveSourceInfo(false, isAdminUser);
+                          const hasActiveKey = !!info?.key;
+                          const colorClass = hasActiveKey ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400';
+                          return `flex items-center gap-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest ${colorClass}`;
+                        })()}>
+                          <div className={(function() {
+                             const info = apiChannelManager.getActiveSourceInfo(false, isAdminUser);
+                             const hasActiveKey = !!info?.key;
+                             return `w-2 h-2 rounded-full ${hasActiveKey ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`;
+                          })()} />
+                          {(() => {
+                            const info = apiChannelManager.getActiveSourceInfo(false, isAdminUser);
+                            const settings = apiChannelManager.getSettings();
+                            const isAdminMode = settings.useAdminKeys;
+                            
+                            const isPremium = userControl?.membershipStatus === 'premium' || isAdminUser;
+                            const poolAvailable = (globalSettings.allow_admin_keys || isAdminUser) && isPremium;
+                            
+                            if (!localApiKey || !info) {
+                              if (poolAvailable && isAdminMode && info?.key) {
+                                 return (
+                                   <div className="flex items-center gap-1.5 text-emerald-500">
+                                     <span>ADMIN POOL</span>
+                                     <span className="opacity-40">•</span>
+                                     <span>ACTIVE</span>
+                                   </div>
+                                 );
+                              }
+                              return 'NO KEY FOUND';
+                            }
+                            
+                            // Determine label and status based on mode and source
+                            const isShared = info.isShared || (isAdminMode && isAdminUser);
+                            const label = isShared ? 'ADMIN POOL' : 'MY KEY';
+                            const status = isShared ? 'ACTIVE' : 'CONNECTED';
+                            
+                            return (
+                              <div className="flex items-center gap-1.5">
+                                <span>{label}</span>
+                                <span className="opacity-40">•</span>
+                                <span>{status}</span>
+                                {localApiKey && (
+                                  <span className="hidden md:inline font-mono lowercase opacity-30 font-normal tracking-normal ml-1">
+                                    ({info.key.substring(0, 4)}...{info.key.slice(-2)})
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                         <ChevronRight size={18} className="text-slate-400 group-hover:translate-x-1 transition-transform" />
                       </div>
@@ -1838,10 +2221,10 @@ export default function App() {
       <ApiKeyModal 
         isOpen={isApiKeyModalOpen}
         onClose={() => setIsApiKeyModalOpen(false)}
-        onSave={handleSaveApiKeyFromModal}
-        onClear={handleClearApiKey}
-        initialKey={localApiKey || ''}
-        vbsId={vbsId}
+        role={profile?.role || userControl?.role}
+        membershipStatus={userControl?.membershipStatus}
+        vbsId={profile?.vbsId || userControl?.vbsId || vbsId}
+        allowAdminKeys={globalSettings.allow_admin_keys}
       />
       <AnimatePresence>
         {toast && (
@@ -1875,9 +2258,51 @@ export default function App() {
         inputType={modal.inputType}
       />
       <footer className="py-12 flex justify-center px-6">
-        <p className="text-slate-500 font-mono text-[10px] md:text-xs tracking-[0.2em] uppercase text-center max-w-xs md:max-w-none leading-relaxed opacity-60">
-          © 2026 Vlogs By Saw <span className="mx-2 hidden md:inline">•</span> <br className="md:hidden" /> Premium AI Narration
-        </p>
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 bg-brand-purple rounded-lg flex items-center justify-center shadow-lg shadow-brand-purple/30">
+              <Mic2 size={12} className="text-white" />
+            </div>
+            <p className="text-transparent bg-clip-text bg-gradient-to-r from-brand-purple via-neon-indigo to-neon-magenta font-black text-sm tracking-tight animate-pulse-soft">
+              Vlogs By Saw
+            </p>
+          </div>
+          <p className="text-[10px] md:text-xs font-bold tracking-[0.25em] uppercase text-center">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-slate-400 via-brand-purple to-slate-400">
+              Premium Myanmar AI Studio 2026
+            </span>
+          </p>
+          <div className="flex items-center gap-4 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+            <button 
+              onClick={() => {
+                window.history.pushState({}, '', '/privacy-policy');
+                setIsPrivacyRoute(true);
+                setIsTermsRoute(false);
+                window.scrollTo(0, 0);
+              }}
+              className="hover:text-brand-purple transition-colors"
+            >
+              {t('settings.privacy')}
+            </button>
+            <span className="opacity-30">•</span>
+            <button 
+              onClick={() => {
+                window.history.pushState({}, '', '/terms-of-service');
+                setIsTermsRoute(true);
+                setIsPrivacyRoute(false);
+                window.scrollTo(0, 0);
+              }}
+              className="hover:text-brand-purple transition-colors"
+            >
+              {t('settings.terms')}
+            </button>
+          </div>
+          <div className="flex items-center gap-3 mt-1">
+            <div className="w-12 h-px bg-gradient-to-r from-transparent to-brand-purple/50" />
+            <div className="w-1.5 h-1.5 rounded-full bg-brand-purple animate-pulse" />
+            <div className="w-12 h-px bg-gradient-to-l from-transparent to-brand-purple/50" />
+          </div>
+        </div>
       </footer>
     </div>
   );

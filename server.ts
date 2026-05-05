@@ -5,6 +5,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { getAuth, DecodedIdToken } from "firebase-admin/auth";
 import { initializeApp, getApps, getApp } from "firebase-admin/app";
 import firebaseConfig from "./firebase-applet-config.json" with { type: "json" };
+import { GoogleGenAI } from "@google/genai";
 
 // Initialize Firebase Admin
 const app = getApps().length 
@@ -42,11 +43,51 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' }));
 
   // API routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", message: "Server is healthy" });
+  });
+
+  // Gemini Proxy Endpoint
+  // This allows users in restricted regions (like Myanmar) to access Gemini via this server
+  app.post("/api/gemini/proxy", async (req, res) => {
+    const { model, contents, config, apiKey: providedKey } = req.body;
+    
+    // Priority: 1. Key provided in body, 2. Key in environment
+    const apiKey = providedKey || process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+      return res.status(400).json({ error: "Gemini API key is required" });
+    }
+
+    if (!model) {
+      return res.status(400).json({ error: "Model name is required" });
+    }
+
+    try {
+      const genAI = new GoogleGenAI(apiKey);
+      const generativeModel = genAI.getGenerativeModel({ model });
+      
+      console.log(`[Proxy] Requesting model: ${model} with key: ${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}`);
+      
+      const result = await generativeModel.generateContent({
+        contents,
+        generationConfig: config
+      });
+
+      const response = await result.response;
+      // We send back the full response object
+      res.json(response);
+    } catch (error: unknown) {
+      console.error("[Proxy] Gemini Error:", error);
+      const err = error as { status?: number; message?: string };
+      res.status(err.status || 500).json({ 
+        error: err.message || "Failed to call Gemini API",
+        details: error
+      });
+    }
   });
 
   // Telegram Notification Endpoint

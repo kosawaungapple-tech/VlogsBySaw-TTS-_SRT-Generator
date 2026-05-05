@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { ChevronDown, Volume2, Wand2 } from 'lucide-react';
 import { TTSConfig } from '../types';
 import { VOICE_OPTIONS } from '../constants';
@@ -25,13 +25,40 @@ export const VoiceConfig: React.FC<VoiceConfigProps> = ({ config, setConfig, isD
   }, [baseDuration, config.speed]);
   
   const QUICK_STYLES = [
-    { label: t('voiceConfig.styles.warm'), value: 'Warm and friendly' },
-    { label: t('voiceConfig.styles.professional'), value: 'Professional and authoritative' },
-    { label: t('voiceConfig.styles.excited'), value: 'Excited and energetic' },
-    { label: t('voiceConfig.styles.angry'), value: 'Angry and intense' },
-    { label: t('voiceConfig.styles.sad'), value: 'Sad and emotional' },
-    { label: t('voiceConfig.styles.whisper'), value: 'Whispering and soft' },
+    { label: t('voiceConfig.styles.warm'), value: 'Warm' },
+    { label: t('voiceConfig.styles.professional'), value: 'Professional' },
+    { label: t('voiceConfig.styles.excited'), value: 'Excited' },
+    { label: t('voiceConfig.styles.angry'), value: 'Angry' },
+    { label: t('voiceConfig.styles.sad'), value: 'Sad' },
+    { label: t('voiceConfig.styles.whisper'), value: 'Whisper' },
+    { label: t('voiceConfig.styles.calm'), value: 'Calm' },
+    { label: t('voiceConfig.styles.energetic'), value: 'Energetic' },
+    { label: t('voiceConfig.styles.storytelling'), value: 'Storytelling' },
+    { label: t('voiceConfig.styles.serious'), value: 'Serious' },
+    { label: t('voiceConfig.styles.happy'), value: 'Happy' },
+    { label: t('voiceConfig.styles.horror'), value: 'Horror' },
+    { label: t('voiceConfig.styles.panic'), value: 'Panic' },
+    { label: t('voiceConfig.styles.suspense'), value: 'Suspense' },
   ];
+
+  const toggleStyle = (style: string) => {
+    const currentStyles = (config.styleInstruction || '').split(',').map(s => s.trim()).filter(Boolean);
+    const hasStyle = currentStyles.includes(style);
+    
+    let newStyles;
+    if (hasStyle) {
+      newStyles = currentStyles.filter(s => s !== style);
+    } else {
+      newStyles = [...currentStyles, style];
+    }
+    
+    handleChange('styleInstruction', newStyles.join(', '));
+  };
+
+  const isStyleActive = (style: string) => {
+    const currentStyles = (config.styleInstruction || '').split(',').map(s => s.trim()).filter(Boolean);
+    return currentStyles.includes(style);
+  };
 
   const handleChange = (key: keyof TTSConfig, value: string | number) => {
     setConfig({ ...config, [key]: value });
@@ -100,9 +127,9 @@ export const VoiceConfig: React.FC<VoiceConfigProps> = ({ config, setConfig, isD
                 <button
                   type="button"
                   key={style.label}
-                  onClick={() => handleChange('styleInstruction', style.value)}
+                  onClick={() => toggleStyle(style.value)}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
-                    config.styleInstruction === style.value
+                    isStyleActive(style.value)
                       ? 'bg-brand-purple text-white border-brand-purple shadow-lg shadow-brand-purple/30'
                       : 'bg-white/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-brand-purple/50 hover:text-brand-purple'
                   }`}
@@ -172,6 +199,22 @@ interface SliderProps {
 }
 
 const Slider: React.FC<SliderProps> = ({ label, value, min, max, step, suffix, onChange, isDarkMode }) => {
+  const [localValue, setLocalValue] = useState(value);
+
+  const prevValueRef = React.useRef(value);
+  React.useEffect(() => {
+    if (prevValueRef.current !== value) {
+      prevValueRef.current = value;
+      setLocalValue(value);
+    }
+  }, [value]);
+
+  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setLocalValue(val);
+    onChange(val);
+  };
+
   return (
     <div className="group">
       <div className="flex items-center justify-between gap-4 mb-2">
@@ -185,17 +228,17 @@ const Slider: React.FC<SliderProps> = ({ label, value, min, max, step, suffix, o
               min={min}
               max={max}
               step={step}
-              value={value}
-              onChange={(e) => onChange(parseFloat(e.target.value))}
+              value={localValue}
+              onChange={handleSliderChange}
               className="w-full h-1.5 bg-slate-200 dark:bg-white/5 rounded-full appearance-none cursor-pointer accent-brand-purple hover:bg-slate-300 dark:hover:bg-white/10 transition-colors"
               style={{
-                background: `linear-gradient(to right, #8B5CF6 0%, #8B5CF6 ${( (value - min) / (max - min) ) * 100}%, ${isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'} ${( (value - min) / (max - min) ) * 100}%, ${isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'} 100%)`
+                background: `linear-gradient(to right, #8B5CF6 0%, #8B5CF6 ${( (localValue - min) / (max - min) ) * 100}%, ${isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'} ${( (localValue - min) / (max - min) ) * 100}%, ${isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'} 100%)`
               }}
             />
           </div>
           <div className="w-16 px-2 py-0.5 bg-brand-purple/10 rounded-lg text-center shrink-0 border border-brand-purple/10">
             <span className="text-[11px] font-bold text-brand-purple">
-              {value > 0 && (label === 'Pitch' || label === 'အသံအနိမ့်အမြင့်') ? `+${value}` : value}
+              {localValue > 0 && (label === 'Pitch' || label === 'အသံအနိမ့်အမြင့်') ? `+${localValue}` : localValue}
               {suffix}
             </span>
           </div>
