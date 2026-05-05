@@ -47,44 +47,102 @@ async function startServer() {
 
   // API routes
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", message: "Server is healthy" });
+    res.json({ status: "ok", message: "Server is healthy", timestamp: new Date().toISOString() });
   });
 
   // Gemini Proxy Endpoint
-  // This allows users in restricted regions (like Myanmar) to access Gemini via this server
-  app.post("/api/gemini/proxy", async (req, res) => {
+  // This allows authorized users to access Gemini via this server.
+  // It handles secure server-side API key management for admin keys.
+  app.post("/api/gemini/proxy", authenticate, async (req, res) => {
     const { model, contents, config, apiKey: providedKey } = req.body;
     
-    // Priority: 1. Key provided in body, 2. Key in environment
-    const apiKey = providedKey || process.env.GEMINI_API_KEY;
-
-    if (!apiKey) {
-      return res.status(400).json({ error: "Gemini API key is required" });
-    }
-
+    // Priority: 1. Key provided in body (Personal Key), 2. Admin Pool Keys from Firestore
+    const apiKey = providedKey;
+    
     if (!model) {
       return res.status(400).json({ error: "Model name is required" });
     }
 
     try {
-      const genAI = new GoogleGenAI(apiKey);
-      const generativeModel = genAI.getGenerativeModel({ model });
-      
-      console.log(`[Proxy] Requesting model: ${model} with key: ${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}`);
-      
-      const result = await generativeModel.generateContent({
-        contents,
-        generationConfig: config
-      });
+      // If no personal key provided, we fetch and rotate through admin keys from Firestore
+      if (!apiKey) {
+        try {
+          const adminChannelsSnapshot = await db.collection('admin_channels').get();
+          const adminKeys = adminChannelsSnapshot.docs
+            .map(doc => doc.data().key)
+            .filter(key => !!key);
 
-      const response = await result.response;
-      // We send back the full response object
-      res.json(response);
+          if (adminKeys.length === 0) {
+            // Fallback to environment variable if no firestore keys
+            if (process.env.GEMINI_API_KEY) {
+              adminKeys.push(process.env.GEMINI_API_KEY);
+            } else {
+              return res.status(400).json({ error: "No API Keys available. Please add one in settings." });
+            }
+          }
+
+          let lastError = null;
+          // Try up to 3 keys or all available (whichever is less) to avoid excessive retries
+          const totalKeys = adminKeys.length;
+          const maxAttempts = Math.min(totalKeys, 3);
+          const startIndex = Math.floor(Math.random() * totalKeys);
+
+          for (let i = 0; i < maxAttempts; i++) {
+            const currentKey = adminKeys[(startIndex + i) % totalKeys];
+            
+            try {
+              const ai = new GoogleGenAI({ apiKey: currentKey });
+              console.log(`[Proxy] Requesting model: ${model} with Admin Pool Key (${i + 1}/${maxAttempts})`);
+              
+              const result = await ai.models.generateContent({
+                model: model,
+                contents,
+                config
+              });
+              return res.json(result);
+            } catch (err: unknown) {
+              lastError = err as Error;
+              const errorObj = err as { status?: number; statusCode?: number; response?: { status: number }; message?: string };
+              const status = errorObj.status || errorObj.statusCode || (errorObj.response ? errorObj.response.status : 500);
+              
+              // If it's a rate limit or overloaded error, try the next key
+              if (status === 429 || status === 503 || (errorObj.message && errorObj.message.includes('RESOURCES_EXHAUSTED'))) {
+                console.warn(`[Proxy] Admin key failed (status ${status}), rotating...`);
+                continue;
+              }
+              // For other errors (like invalid prompt), throw immediately
+              throw err;
+            }
+          }
+          
+          if (lastError) throw lastError;
+        } catch (dbErr) {
+          console.error("[Proxy] Firestore/Rotation Error:", dbErr);
+          throw dbErr;
+        }
+      } else {
+        // PERSONAL KEY MODE
+        const ai = new GoogleGenAI({ apiKey });
+        console.log(`[Proxy] Requesting model: ${model} with Personal Key: ${apiKey.substring(0, 4)}...`);
+        
+        const result = await ai.models.generateContent({
+          model: model,
+          contents,
+          config
+        });
+        return res.json(result);
+      }
     } catch (error: unknown) {
       console.error("[Proxy] Gemini Error:", error);
-      const err = error as { status?: number; message?: string };
-      res.status(err.status || 500).json({ 
-        error: err.message || "Failed to call Gemini API",
+      
+      const err = error as { status?: number; statusCode?: number; response?: { status: number }; message?: string };
+      
+      // Extract status and message from the various error formats Gemini can return
+      const status = err.status || err.statusCode || (err.response ? err.response.status : 500);
+      const message = err.message || "Failed to call Gemini API";
+      
+      res.status(status).json({ 
+        error: message,
         details: error
       });
     }

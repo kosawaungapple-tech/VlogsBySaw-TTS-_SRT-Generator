@@ -1,9 +1,9 @@
-import { GoogleGenAI, Modality } from "@google/genai";
 import { TTSConfig, AudioResult, SRTSubtitle } from "../types";
 import { VOICE_OPTIONS, GEMINI_MODELS } from "../constants";
 import { formatTime } from "../utils/audioUtils";
 import { generateOptimizedSubtitles } from "../utils/subtitleUtils";
 import { apiChannelManager } from "./apiChannelManager";
+import { getIdToken } from "../firebase";
 
 interface GeminiResponse {
   candidates?: Array<{
@@ -34,14 +34,21 @@ export class GeminiTTSService {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async geminiRequest(modelName: string, body: { contents: any[]; generationConfig?: any }): Promise<GeminiResponse> {
     const executeRequest = async (key: string) => {
-      console.log(`Gemini Proxy Request [${modelName}]. Key:`, key ? `${key.substring(0, 4)}...${key.substring(key.length - 4)}` : "MISSING");
+      console.log(`Gemini Proxy Request [${modelName}]. Key:`, key ? `${key.substring(0, 4)}...${key.substring(key.length - 4)}` : "ADMIN_POOL (Server-side)");
       
       try {
+        const token = await getIdToken();
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
         const response = await fetch('/api/gemini/proxy', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers,
           body: JSON.stringify({
             model: modelName,
             contents: body.contents,
@@ -234,7 +241,7 @@ export class GeminiTTSService {
     const body = {
       contents: [{ parts: [{ text: textWithInstruction }] }],
       generationConfig: {
-        responseModalities: [Modality.AUDIO],
+        responseModalities: ["AUDIO"],
         speechConfig: {
           voiceConfig: {
             prebuiltVoiceConfig: {

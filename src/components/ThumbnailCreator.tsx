@@ -21,7 +21,6 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { GeminiTTSService } from '../services/geminiService';
 
 interface ThumbnailTabProps {
-  isDarkMode: boolean;
   showToast: (message: string, type: 'success' | 'error') => void;
   getApiKey: () => string | null;
   isAdmin: boolean;
@@ -255,7 +254,6 @@ function applyTextOverlay(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasEleme
 }
 
 export const ThumbnailCreator: React.FC<ThumbnailTabProps> = ({ 
-  isDarkMode, 
   showToast, 
   getApiKey,
   isAdmin,
@@ -659,7 +657,7 @@ CRITICAL: Generate ONLY the background visual. NO TEXT of any kind in the image.
 
       {/* Preview Column */}
       <div className="lg:col-span-7 space-y-6">
-        <div className={`glass-card p-6 rounded-[32px] border shadow-2xl relative overflow-hidden h-fit transition-all ${isDarkMode ? 'border-slate-800/40' : 'border-white/40'}`}>
+        <div className={`glass-card p-6 rounded-[32px] border shadow-2xl relative overflow-hidden h-fit transition-all border-slate-800/40`}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className={`w-2 h-2 rounded-full ${isGenerating ? 'bg-amber-500 animate-pulse' : 'bg-brand-purple'}`} />

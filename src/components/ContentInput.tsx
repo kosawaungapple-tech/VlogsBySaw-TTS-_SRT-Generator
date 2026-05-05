@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Trash2, Clipboard, Sparkles, RefreshCw, Check, Info } from 'lucide-react';
+import { Trash2, Clipboard, Sparkles, RefreshCw, Check, Info, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GeminiTTSService } from '../services/geminiService';
 import { apiChannelManager } from '../services/apiChannelManager';
@@ -185,103 +185,76 @@ export const ContentInput: React.FC<ContentInputProps> = ({
     : `Estimated Duration: ~${Math.floor(estimatedSeconds / 60)}m ${Math.round(estimatedSeconds % 60)}s`;
 
   return (
-    <div className="premium-glass rounded-[32px] p-8 sm:p-12 shadow-2xl transition-all duration-300 relative overflow-hidden">
-      <div className="absolute top-0 left-0 w-64 h-64 bg-brand-purple/5 blur-[100px] -z-10" />
+    <div className="bg-white/[0.02] backdrop-blur-3xl rounded-[40px] p-8 sm:p-12 border border-white/5 shadow-[0_32px_64px_rgba(0,0,0,0.8)] relative overflow-hidden group">
+      <div className="absolute top-0 right-0 w-64 h-64 bg-amber-400/5 blur-[100px] -z-10 group-hover:bg-amber-400/10 transition-colors duration-1000" />
       
-      {/* VPN NOTICE - COMMANDER ORDER */}
+      {/* VPN NOTICE */}
       <AnimatePresence>
         {showVpnNotice && (
           <motion.div 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="mb-8"
+            className="mb-10"
           >
-            <div className="bg-rose-500/10 border-2 border-rose-500/30 rounded-2xl p-5 flex items-center justify-between gap-4 shadow-[0_0_30px_rgba(244,63,94,0.15)] group hover:border-rose-500/50 transition-all duration-300">
-              <div className="flex items-center gap-4">
-                <div className="p-2.5 bg-rose-500/20 rounded-xl text-rose-500 animate-pulse border border-rose-500/30">
-                  <Info size={20} />
+            <div className="bg-amber-400/5 border border-amber-400/20 rounded-3xl p-6 flex items-center justify-between gap-4 shadow-2xl relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-amber-400/5 to-transparent opacity-50" />
+              <div className="flex items-center gap-5 relative z-10">
+                <div className="w-12 h-12 bg-amber-400 rounded-2xl flex items-center justify-center text-black shadow-lg shadow-amber-400/20">
+                  <Info size={24} />
                 </div>
                 <div className="flex flex-col">
-                  <p className="text-[13px] font-black text-rose-500 uppercase tracking-tight leading-tight">
+                  <p className="text-sm font-black text-amber-400 uppercase tracking-widest leading-relaxed">
                     ပိုမိုမြန်ဆန်စေရန် VPN ဖွင့်၍ အသုံးပြုပေးပါ
                   </p>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1 opacity-80">
-                    Use VPN for faster AI Narration processing
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
+                    Use VPN for professional-grade processing speeds
                   </p>
                 </div>
               </div>
               <button 
                 onClick={dismissVpnNotice}
-                className="p-2 hover:bg-rose-500/10 rounded-lg text-rose-500/50 hover:text-rose-500 transition-colors"
+                className="p-2 hover:bg-white/10 rounded-xl text-slate-500 hover:text-white transition-all relative z-10"
               >
-                <RefreshCw size={14} className="rotate-45" />
+                <X size={20} />
               </button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
       
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-8">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-2xl font-bold flex items-center gap-4 text-slate-900 dark:text-white tracking-tight">
-            <div className="p-2.5 bg-brand-purple/10 rounded-xl text-brand-purple">
-              <Clipboard size={24} />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-8 mb-10">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-4">
+            <h2 className="text-3xl font-black text-white tracking-tight uppercase">
+              {t('generate.contentStudio')}
+            </h2>
+            <div className="flex items-center gap-2 px-3 py-1 bg-amber-400/10 rounded-full border border-amber-400/20">
+              <div className={`w-1.5 h-1.5 rounded-full ${status.dot} shadow-[0_0_8px_currentColor]`} />
+              <span className={`text-[9px] font-black uppercase tracking-widest ${status.color}`}>
+                {status.label}
+              </span>
             </div>
-            {t('generate.contentStudio')}
-            <span className="text-[10px] bg-brand-purple/20 text-brand-purple px-3 py-1 rounded-full font-bold tracking-[0.15em] uppercase">
-              {t('generate.aiPowered')}
-            </span>
-          </h2>
-          <div className="flex items-center gap-2 px-1 mt-2">
-            <div className={`w-2 h-2 rounded-full ${status.dot} animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]`} />
-            <span className={`text-[10px] font-bold uppercase tracking-widest ${status.color}`}>
-              {status.label}
-            </span>
           </div>
+          <p className="text-slate-500 text-sm font-medium">Create cinematic Burmese narrations with precision.</p>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3 relative">
+        <div className="flex items-center gap-3 relative">
           <motion.button
-            whileHover={{ scale: 1.05, boxShadow: '0 0 20px rgba(139, 92, 246, 0.4)' }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.02, boxShadow: '0 0 30px rgba(234, 179, 8, 0.2)' }}
+            whileTap={{ scale: 0.98 }}
             onClick={() => setShowStyleSelector(!showStyleSelector)}
             disabled={isRewriting || !text.trim() || currentStatus === 'cooling'}
-            className="flex items-center gap-2 px-6 py-3 bg-brand-purple text-white rounded-xl text-xs font-bold hover:bg-brand-purple/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-brand-purple/30 min-w-[160px] justify-center metallic-btn"
+            className="flex items-center gap-3 px-8 py-4 bg-amber-400 text-black rounded-2xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:grayscale shadow-xl shadow-amber-400/10 min-w-[200px] justify-center"
           >
             {isRewriting ? (
-              <div className="flex items-center gap-0.5 h-4">
-                {[...Array(3)].map((_, i) => (
-                  <motion.div
-                    key={i}
-                    className="w-0.5 bg-white rounded-full"
-                    animate={{
-                      height: [4, 12, 4],
-                    }}
-                    transition={{
-                      duration: 0.6,
-                      repeat: Infinity,
-                      delay: i * 0.1,
-                    }}
-                  />
-                ))}
-              </div>
+              <RefreshCw size={18} className="animate-spin" />
             ) : (
-              <Sparkles size={16} />
+              <Sparkles size={18} />
             )}
             {isRewriting 
-              ? (currentStatus === 'cooling' ? `${t('generate.coolingDown')} (${currentCountdown}s)` : t('generate.rewriting')) 
-              : (
-                <div className="flex items-center gap-2">
-                  <Sparkles size={16} />
-                  {t('generate.rewriteBtn')}
-                  {!isAdmin && (
-                    <span className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded font-black tracking-tighter">
-                      {isSharedKey ? `${rewriteCost} Cred` : 'FREE'}
-                    </span>
-                  )}
-                </div>
-              )}
+              ? (currentStatus === 'cooling' ? `${t('generate.coolingDown')} (${currentCountdown}s)` : 'PROCESSING...') 
+              : t('generate.rewriteBtn')}
           </motion.button>
 
           {/* Style Selector Popup */}
@@ -342,44 +315,44 @@ export const ContentInput: React.FC<ContentInputProps> = ({
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={t('generate.inputPlaceholder')}
-          className="w-full h-72 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-[24px] p-6 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-purple/30 focus:border-brand-purple/50 resize-none custom-scrollbar transition-all duration-300 font-medium leading-relaxed shadow-inner"
+          className="w-full h-80 bg-black/50 border border-white/5 rounded-[32px] p-8 text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400/30 focus:border-amber-400/50 resize-none custom-scrollbar transition-all duration-500 font-medium leading-relaxed shadow-[inset_0_2px_20px_rgba(0,0,0,0.4)]"
         />
-        <div className="absolute top-4 right-4 flex gap-2">
+        <div className="absolute top-6 right-6 flex gap-2">
           <button
             onClick={() => handleCopy(text)}
             disabled={!text}
-            className="p-2.5 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-white/10 rounded-xl text-slate-500 hover:text-brand-purple hover:border-brand-purple/50 transition-all shadow-sm disabled:opacity-30"
+            className="p-3 bg-white/5 backdrop-blur-xl border border-white/10 rounded-[18px] text-slate-400 hover:text-amber-400 hover:border-amber-400/50 transition-all shadow-xl disabled:opacity-20"
             title={t('translator.copy')}
           >
-            {isCopied ? <Check size={18} className="text-emerald-500" /> : <Clipboard size={18} />}
+            {isCopied ? <Check size={20} className="text-emerald-500" /> : <Clipboard size={20} />}
           </button>
         </div>
       </div>
 
       {/* Real-time Duration Estimate Label */}
       {!hasResult && (
-        <div className="mt-2 px-1">
-          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-500 flex items-center gap-2 opacity-80">
-            <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-600" />
+        <div className="mt-4 px-2">
+          <p className="text-[12px] font-black text-slate-500 flex items-center gap-2 tracking-widest uppercase">
+            <span className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />
             {formattedDuration}
           </p>
         </div>
       )}
 
-      <div className="mt-4 flex items-center justify-between">
+      <div className="mt-8 flex items-center justify-between">
         <div className="flex-1">
           {currentStatus === 'limit' && (
             <motion.div 
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
-              className="text-[11px] font-bold text-rose-500 bg-rose-500/10 px-4 py-2 rounded-xl border border-rose-500/20 neon-glow-magenta"
+              className="text-[11px] font-black text-rose-500 bg-rose-500/10 px-6 py-3 rounded-2xl border border-rose-500/20 uppercase tracking-widest shadow-[0_0_20px_rgba(244,63,94,0.1)]"
             >
               {t('errors.rateLimit')}
             </motion.div>
           )}
         </div>
-        <div className="px-4 py-1.5 bg-white/50 dark:bg-white/5 rounded-full border border-slate-200 dark:border-white/10 ml-4 shadow-sm">
-          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold font-mono uppercase tracking-widest">
+        <div className="px-5 py-2 bg-white/5 rounded-full border border-white/5 ml-4 shadow-xl">
+          <span className="text-[10px] text-slate-500 font-black font-mono uppercase tracking-[0.2em]">
             {text.length} {t('generate.characters')}
           </span>
         </div>

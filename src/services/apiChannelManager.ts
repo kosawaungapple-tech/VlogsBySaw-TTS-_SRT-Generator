@@ -65,6 +65,8 @@ class ApiChannelManager {
     console.log("[VBS] Initializing Admin Channels Sync...");
     
     // 1. Sync Admin Channels Collection
+    // Security: ONLY admins should sync these keys to their browser.
+    // Regular users will use the server-side proxy pool without seeing the keys.
     onSnapshot(collection(db, 'admin_channels'), (snapshot) => {
       const channels: ApiChannel[] = snapshot.docs.map(d => ({
         ...d.data() as ApiChannel,
@@ -80,8 +82,10 @@ class ApiChannelManager {
       
       this.saveToStorage();
       this.notify();
-    }, (err) => {
-      console.warn("[VBS] Admin Channels sync failed (possibly permissions):", err);
+    }, () => {
+      // It is EXPECTED that regular users fail this sync.
+      // They will rely on the server-side proxy.
+      console.log("[VBS] Admin Channels sync restricted (User is not Admin). Using server-side pool.");
     });
 
     // 2. Sync Settings (Partial - just the admin pieces if needed, though App.tsx handles globalSettings)
@@ -375,6 +379,12 @@ class ApiChannelManager {
     if (!isAdmin && useAdminMode && !canUseAdminPool) {
        if (personalKey) return await apiFn(personalKey);
        throw new Error("Admin Pool Sharing ကို Admin မှ ပိတ်ထားပါသည်။ Personal Key ထည့်ပါ။");
+    }
+
+    // if user is regular user (no keys synced due to restricted permissions) but chose admin pool -> use SERVER POOL (send empty string to proxy)
+    if (!isUserAdmin && useAdminMode && adminKeys.length === 0) {
+      console.log("[VBS] Using Server-side Admin Pool (Keys are hidden from browser)");
+      return await apiFn(""); // Empty string triggers server-side rotate/fetch
     }
 
     if (adminKeys.length === 0) {

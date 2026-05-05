@@ -35,11 +35,6 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<Tab>('generate');
   const [hasEntered, setHasEntered] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(true);
-  type UITheme = 'glassmorphism' | 'minimal' | 'neon' | 'cyberpunk';
-  const [uiTheme, setUITheme] = useState<UITheme>(() => {
-    return (localStorage.getItem('vbs_ui_theme') as UITheme) || 'glassmorphism';
-  });
   const [text, setText] = useState('');
   const [customRules] = useState('');
   const [saveToHistory, setSaveToHistory] = useState(false);
@@ -386,13 +381,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', isDarkMode);
-    document.documentElement.classList.remove('theme-minimal', 'theme-neon', 'theme-cyberpunk');
-    if (uiTheme !== 'glassmorphism') {
-      document.documentElement.classList.add(`theme-${uiTheme}`);
-    }
-    localStorage.setItem('vbs_ui_theme', uiTheme);
-  }, [isDarkMode, uiTheme]);
+    document.documentElement.classList.add('dark');
+  }, []);
 
   // Ensure session document exists for security rules
   useEffect(() => {
@@ -833,12 +823,12 @@ export default function App() {
       console.warn("App: Generation blocked - No API Key found. Opening settings modal.");
       openModal({
         title: 'API Key Required',
-        message: 'ကျေးဇူးပြု၍ Settings တွင် API Key အရင်ထည့်သွင်းပါ။ (No API Key found. Please add one in Settings.)',
+        message: t('generate.noApiKey'),
         type: 'error',
         confirmText: 'Open Settings',
         onConfirm: () => setIsApiKeyModalOpen(true)
       });
-      setError('ကျေးဇူးပြု၍ Settings တွင် API Key အရင်ထည့်သွင်းပါ။ (No API Key found. Please add one in Settings.)');
+      setError(t('generate.noApiKey'));
       return;
     }
     
@@ -1273,26 +1263,26 @@ export default function App() {
           onClick={onClick}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
-          className={`px-3 sm:px-6 py-2.5 sm:py-3 rounded-[16px] sm:rounded-[18px] text-xs sm:text-sm font-bold transition-all flex items-center gap-2 relative group ${
+          className={`px-3 sm:px-6 py-3 sm:py-3.5 rounded-full text-xs sm:text-sm font-black transition-all flex items-center gap-2.5 relative group ${
             active 
-              ? 'bg-brand-purple text-white shadow-[0_0_20px_rgba(139,92,246,0.6)] scale-[1.02] sm:scale-[1.05] z-10' 
-              : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/5 dark:hover:bg-white/5'
+              ? 'bg-amber-400 text-black shadow-[0_0_20px_rgba(234,179,8,0.4)] scale-[1.05] z-10' 
+              : 'text-slate-400 hover:text-white hover:bg-white/5'
           }`}
         >
-          <div className={`${active ? 'scale-110 drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]' : 'group-hover:scale-110 transition-transform'}`}>
+          <div className={`${active ? 'scale-110 drop-shadow-[0_0_8px_rgba(234,179,8,0.5)]' : 'group-hover:scale-110 transition-transform'}`}>
             {locked && !active ? <Lock size={16} className="text-rose-400" /> : icon}
           </div>
-          <span className={`${active ? 'inline' : 'hidden sm:inline'} text-[10px] sm:text-xs tracking-tight whitespace-nowrap`}>
+          <span className={`${active ? 'inline' : 'hidden md:inline'} tracking-tight whitespace-nowrap`}>
             {label}
           </span>
           {badge && (
-            <span className="absolute -top-1 -right-1 bg-violet-500 text-white text-[8px] px-1.5 py-0.5 rounded-full font-black scale-90 sm:scale-100 shadow-lg shadow-violet-500/20">
+            <span className="absolute -top-1 -right-1 bg-amber-400 text-black text-[8px] px-1.5 py-0.5 rounded-full font-black scale-90 sm:scale-100 shadow-lg shadow-amber-400/20">
               {badge}
             </span>
           )}
           
           {active && (
-            <div className="absolute inset-0 bg-brand-purple/20 blur-xl rounded-full -z-10" />
+            <div className="absolute inset-0 bg-amber-400/20 blur-xl rounded-full -z-10" />
           )}
         </button>
 
@@ -1321,10 +1311,33 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen flex flex-col transition-colors duration-500 relative overflow-hidden ${isDarkMode ? 'dark bg-[#020617] text-white' : 'bg-slate-50 text-slate-900'}`}>
-      {/* Premium Background Glows */}
-      <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-brand-purple/10 blur-[120px] rounded-full -z-10 animate-pulse-soft" />
-      <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-neon-magenta/10 blur-[120px] rounded-full -z-10 animate-pulse-soft" />
+    <div className="min-h-screen bg-black text-white selection:bg-amber-400/30 transition-colors duration-500 relative overflow-hidden font-sans">
+      {/* Premium Background Elements */}
+      <div className="fixed inset-0 -z-10 bg-black overflow-hidden pointer-events-none">
+        <div className="noise-overlay absolute inset-0 mix-blend-overlay" />
+        
+        {/* Animated Gradient Orbs */}
+        <motion.div 
+          animate={{ 
+            x: [0, 100, 0], 
+            y: [0, -50, 0],
+            scale: [1, 1.2, 1],
+            opacity: [0.3, 0.4, 0.3]
+          }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#EAB308]/10 blur-[140px] rounded-full" 
+        />
+        <motion.div 
+          animate={{ 
+            x: [0, -80, 0], 
+            y: [0, 60, 0],
+            scale: [1, 1.3, 1],
+            opacity: [0.2, 0.3, 0.2]
+          }}
+          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+          className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-brand-purple/15 blur-[140px] rounded-full" 
+        />
+      </div>
       
       {/* Channels Exhausted Banner */}
       <AnimatePresence>
@@ -1353,34 +1366,39 @@ export default function App() {
       </AnimatePresence>
 
       <Header 
-        isDarkMode={isDarkMode} 
-        toggleTheme={() => setIsDarkMode(!isDarkMode)} 
-        uiTheme={uiTheme}
-        onThemeChange={setUITheme}
         isAccessGranted={isAccessGranted}
         isAdmin={isVbsAdmin}
         apiKeyStatus={apiKeyStatus}
         userControl={userControl}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
       />
 
-      {isAccessGranted && !isVbsAdmin && (
-        <AnnouncementPanel announcements={globalSettings.announcements} />
-      )}
-
-      <main className="flex-1 container mx-auto px-4 sm:px-6 py-6 sm:py-8 overflow-x-hidden">
-        {!(isPrivacyRoute || isTermsRoute) && (
-          <div className="mb-8 text-center sm:text-left">
-            <h1 className="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white mb-2 flex items-center justify-center sm:justify-start gap-3">
-              Vlogs By Saw
-              <span className="text-xs bg-brand-purple/10 text-brand-purple px-3 py-1 rounded-full uppercase tracking-tighter shadow-sm border border-brand-purple/20">
-                Premium AI Narration
-              </span>
-            </h1>
-            <p className="text-slate-500 dark:text-slate-400 font-medium max-w-2xl">
-              Professional Burmese Storytelling & Cinematic AI Voiceover Studio. Engineered for high-end recap content.
-            </p>
-          </div>
+      <div className="flex-1 flex flex-col">
+        {isAccessGranted && !isVbsAdmin && (
+          <AnnouncementPanel announcements={globalSettings.announcements} />
         )}
+
+        <main className="flex-1 container mx-auto px-4 sm:px-6 py-12 sm:py-16 overflow-x-hidden">
+          {!(isPrivacyRoute || isTermsRoute) && (
+            <div className="mb-12 text-center">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-400/10 text-amber-500 rounded-full border border-amber-400/20 text-[10px] font-black uppercase tracking-widest mb-6"
+              >
+                <Sparkles size={14} className="animate-pulse" />
+                Vlogs By Saw Studio
+              </motion.div>
+              <h1 className="text-4xl sm:text-6xl font-black text-white mb-6 tracking-tight">
+                BURMESE <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-200 to-amber-500">AI CONTENT</span>
+              </h1>
+              <p className="text-slate-400 font-medium max-w-2xl mx-auto text-lg leading-relaxed">
+                Professional Storytelling & Cinematic AI Voiceover Suite. 
+                <span className="block text-slate-500 text-sm mt-2">High-performance engine built for movie recappers.</span>
+              </p>
+            </div>
+          )}
 
         {isConfigLoading ? (
           <div className="flex flex-col items-center justify-center py-40">
@@ -1525,7 +1543,7 @@ export default function App() {
         ) : (
           <div className="space-y-8">
             {/* Tab Navigation */}
-            <div className="flex items-center gap-1 sm:gap-2 glass-card p-1.5 rounded-[22px] w-fit mx-auto shadow-2xl relative z-40">
+            <div className="flex items-center gap-1 sm:gap-2 bg-white/[0.03] backdrop-blur-xl border border-white/10 p-1.5 rounded-full w-fit mx-auto shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative z-40 mb-12">
               <NavTab
                 id="generate"
                 active={activeTab === 'generate'}
@@ -1632,7 +1650,6 @@ export default function App() {
                     <VoiceConfig 
                       config={config} 
                       setConfig={setConfig} 
-                      isDarkMode={isDarkMode} 
                       isAdmin={isAdminUser}
                       baseDuration={result?.oneXDuration}
                     />
@@ -1746,37 +1763,38 @@ export default function App() {
                           </span>
                         </div>
                     </div>
-
-                        <AnimatePresence>
-                          {(isLoading || error || (result && activeTab === 'generate')) && (
-                            <motion.div
-                              initial={{ opacity: 0, y: 40, scale: 0.98 }}
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
-                              exit={{ opacity: 0, y: 20 }}
-                              transition={{ 
-                                type: "spring", 
-                                stiffness: 100, 
-                                damping: 20,
-                                duration: 0.6 
-                              }}
-                              id="output-preview-container"
-                              className="mt-8"
-                            >
-                              <OutputPreview 
-                                playbackSpeed={outputConfig.speed}
-                                result={result} 
-                                isLoading={isLoading} 
-                                error={error}
-                                onRetry={() => handleGenerate()}
-                                globalVolume={outputConfig.volume}
-                                engineStatus={engineStatus}
-                                retryCountdown={retryCountdown}
-                                showToast={showToast}
-                              />
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
                   </div>
+
+                  {/* Full Width Output Preview */}
+                  <AnimatePresence>
+                    {(isLoading || error || (result && activeTab === 'generate')) && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 40, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        transition={{ 
+                          type: "spring", 
+                          stiffness: 100, 
+                          damping: 20,
+                          duration: 0.6 
+                        }}
+                        id="output-preview-container"
+                        className="lg:col-span-12 mt-8"
+                      >
+                        <OutputPreview 
+                          playbackSpeed={outputConfig.speed}
+                          result={result} 
+                          isLoading={isLoading} 
+                          error={error}
+                          onRetry={() => handleGenerate()}
+                          globalVolume={outputConfig.volume}
+                          engineStatus={engineStatus}
+                          retryCountdown={retryCountdown}
+                          showToast={showToast}
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </motion.div>
               )}
 
@@ -1840,7 +1858,6 @@ export default function App() {
                   exit={{ opacity: 0, y: -20 }}
                 >
                    <ThumbnailCreator 
-                     isDarkMode={isDarkMode} 
                      showToast={showToast}
                      getApiKey={getEffectiveApiKey}
                      isAdmin={isVbsAdmin}
@@ -2215,6 +2232,7 @@ export default function App() {
           </div>
         )}
       </main>
+    </div>
 
       {/* Settings Integrated into Tools Tab */}
       {/* Toast Notification */}
