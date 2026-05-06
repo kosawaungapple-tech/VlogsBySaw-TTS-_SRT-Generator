@@ -1263,26 +1263,26 @@ export default function App() {
           onClick={onClick}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
-          className={`px-3 sm:px-6 py-3 sm:py-3.5 rounded-full text-xs sm:text-sm font-black transition-all flex items-center gap-2.5 relative group ${
+          className={`px-3 sm:px-6 py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-[10px] sm:text-sm font-bold transition-all flex items-center justify-center gap-2 relative group flex-1 sm:flex-initial ${
             active 
-              ? 'bg-amber-400 text-black shadow-[0_0_20px_rgba(234,179,8,0.4)] scale-[1.05] z-10' 
-              : 'text-slate-400 hover:text-white hover:bg-white/5'
+              ? 'bg-amber-400 text-black shadow-lg shadow-amber-400/20 scale-[1.02] z-10' 
+              : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
           }`}
         >
-          <div className={`${active ? 'scale-110 drop-shadow-[0_0_8px_rgba(234,179,8,0.5)]' : 'group-hover:scale-110 transition-transform'}`}>
-            {locked && !active ? <Lock size={16} className="text-rose-400" /> : icon}
+          <div className={`${active ? 'scale-110' : 'group-hover:scale-110 transition-transform'}`}>
+            {locked && !active ? <Lock size={14} className="text-slate-600" /> : icon}
           </div>
-          <span className={`${active ? 'inline' : 'hidden md:inline'} tracking-tight whitespace-nowrap`}>
+          <span className="hidden md:inline tracking-tight whitespace-nowrap">
             {label}
           </span>
           {badge && (
-            <span className="absolute -top-1 -right-1 bg-amber-400 text-black text-[8px] px-1.5 py-0.5 rounded-full font-black scale-90 sm:scale-100 shadow-lg shadow-amber-400/20">
+            <span className="absolute -top-1 -right-1 bg-brand-purple text-white text-[8px] px-1.5 py-0.5 rounded-full font-bold scale-90 sm:scale-100 shadow-md">
               {badge}
             </span>
           )}
           
           {active && (
-            <div className="absolute inset-0 bg-amber-400/20 blur-xl rounded-full -z-10" />
+            <div className="absolute inset-0 bg-brand-purple/20 blur-lg rounded-xl -z-10" />
           )}
         </button>
 
@@ -1335,7 +1335,7 @@ export default function App() {
             opacity: [0.2, 0.3, 0.2]
           }}
           transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-          className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-brand-purple/15 blur-[140px] rounded-full" 
+          className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-amber-400/15 blur-[140px] rounded-full" 
         />
       </div>
       
@@ -1379,28 +1379,8 @@ export default function App() {
           <AnnouncementPanel announcements={globalSettings.announcements} />
         )}
 
-        <main className="flex-1 container mx-auto px-4 sm:px-6 py-12 sm:py-16 overflow-x-hidden">
-          {!(isPrivacyRoute || isTermsRoute) && (
-            <div className="mb-12 text-center">
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-400/10 text-amber-500 rounded-full border border-amber-400/20 text-[10px] font-black uppercase tracking-widest mb-6"
-              >
-                <Sparkles size={14} className="animate-pulse" />
-                Vlogs By Saw Studio
-              </motion.div>
-              <h1 className="text-4xl sm:text-6xl font-black text-white mb-6 tracking-tight">
-                BURMESE <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-200 to-amber-500">AI CONTENT</span>
-              </h1>
-              <p className="text-slate-400 font-medium max-w-2xl mx-auto text-lg leading-relaxed">
-                Professional Storytelling & Cinematic AI Voiceover Suite. 
-                <span className="block text-slate-500 text-sm mt-2">High-performance engine built for movie recappers.</span>
-              </p>
-            </div>
-          )}
-
-        {isConfigLoading ? (
+        <main className="flex-1 container mx-auto px-4 sm:px-6 py-6 sm:py-8 overflow-x-hidden">
+          {isConfigLoading ? (
           <div className="flex flex-col items-center justify-center py-40">
             <div className="flex items-center justify-center gap-1.5 h-12 mb-6">
               {[...Array(8)].map((_, i) => (
@@ -1523,7 +1503,7 @@ export default function App() {
               whileTap={{ scale: 0.98 }}
               type="submit"
               disabled={isVerifyingCode || !accessCodeInput.trim() || !isAuthReady}
-              className="w-full py-4 bg-brand-purple text-white rounded-[20px] font-bold text-lg hover:bg-brand-purple/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-brand-purple/30 metallic-btn"
+              className="w-full py-4 bg-amber-400 text-black rounded-[20px] font-bold text-lg hover:bg-amber-500 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-amber-400/30 metallic-btn"
             >
               {isVerifyingCode || !isAuthReady ? (
                 <div className="flex items-center gap-2">
@@ -1543,7 +1523,7 @@ export default function App() {
         ) : (
           <div className="space-y-8">
             {/* Tab Navigation */}
-            <div className="flex items-center gap-1 sm:gap-2 bg-white/[0.03] backdrop-blur-xl border border-white/10 p-1.5 rounded-full w-fit mx-auto shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative z-40 mb-12">
+            <div className="flex items-center gap-1 sm:gap-2 bg-white/5 backdrop-blur-xl border border-white/10 p-1 rounded-xl sm:rounded-2xl w-full sm:w-fit mx-auto shadow-2xl relative z-40 mb-8 sm:mb-10 overflow-x-auto no-scrollbar">
               <NavTab
                 id="generate"
                 active={activeTab === 'generate'}
@@ -1678,16 +1658,16 @@ export default function App() {
                           <motion.div 
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 shadow-xl shadow-amber-500/5"
+                            className="mb-6 p-4 rounded-2xl bg-brand-purple/10 border border-brand-purple/20 text-brand-purple shadow-xl shadow-brand-purple/5"
                           >
                             <div className="flex gap-3">
-                              <Info size={18} className="shrink-0 mt-0.5 text-amber-500" />
+                              <Info size={18} className="shrink-0 mt-0.5 text-brand-purple" />
                               <div className="text-[11px] leading-relaxed space-y-1">
                                 <p className="font-bold">အမြန်နှုန်း အရမ်းမြန်ရင် အသံအရည်အသွေး အနည်းငယ် ပြောင်းလဲနိုင်ပါတယ်။</p>
                                 <p className="opacity-80">အကောင်းဆုံး အသံထွက်အတွက် 1.2x မှ 1.5x အတွင်းသာ ထားရှိရန် အကြံပြုပါတယ်။</p>
                                 <button 
                                   onClick={() => setConfig(prev => ({ ...prev, speed: 1.2 }))}
-                                  className="mt-2 flex items-center gap-1.5 px-3 py-1 bg-amber-500 text-white rounded-full font-bold uppercase text-[9px] tracking-wider hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/30"
+                                  className="mt-2 flex items-center gap-1.5 px-3 py-1 bg-brand-purple text-white rounded-full font-bold uppercase text-[9px] tracking-wider hover:bg-brand-purple/90 transition-all shadow-lg shadow-brand-purple/30"
                                 >
                                   <Sparkles size={10} />
                                   Optimize to 1.2x
@@ -1980,7 +1960,7 @@ export default function App() {
                                 </button>
                                 <button 
                                   onClick={() => handleDownloadSRT(item.srtStorageUrl || item.srtContent || '', `subtitles-${item.id}.srt`)}
-                                  className="p-3 bg-amber-500/10 text-amber-500 rounded-[14px] hover:bg-amber-500 hover:text-white transition-all border border-amber-500/20 shadow-sm"
+                                  className="p-3 bg-brand-purple/10 text-brand-purple rounded-[14px] hover:bg-brand-purple hover:text-white transition-all border border-brand-purple/20 shadow-sm"
                                   title={t('output.downloadSrt')}
                                 >
                                   <FileText size={18} />
@@ -2278,15 +2258,15 @@ export default function App() {
       <footer className="py-12 flex justify-center px-6">
         <div className="flex flex-col items-center gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-brand-purple rounded-lg flex items-center justify-center shadow-lg shadow-brand-purple/30">
-              <Mic2 size={12} className="text-white" />
+            <div className="w-6 h-6 bg-amber-400 rounded-lg flex items-center justify-center shadow-lg shadow-amber-400/30">
+              <Mic2 size={12} className="text-black" />
             </div>
-            <p className="text-transparent bg-clip-text bg-gradient-to-r from-brand-purple via-neon-indigo to-neon-magenta font-black text-sm tracking-tight animate-pulse-soft">
+            <p className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-200 to-amber-500 font-black text-sm tracking-tight animate-pulse-soft">
               Vlogs By Saw
             </p>
           </div>
           <p className="text-[10px] md:text-xs font-bold tracking-[0.25em] uppercase text-center">
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-slate-400 via-brand-purple to-slate-400">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-slate-400 via-amber-400 to-slate-400">
               Premium Myanmar AI Studio 2026
             </span>
           </p>
@@ -2298,7 +2278,7 @@ export default function App() {
                 setIsTermsRoute(false);
                 window.scrollTo(0, 0);
               }}
-              className="hover:text-brand-purple transition-colors"
+              className="hover:text-amber-400 transition-colors"
             >
               {t('settings.privacy')}
             </button>
@@ -2310,15 +2290,15 @@ export default function App() {
                 setIsPrivacyRoute(false);
                 window.scrollTo(0, 0);
               }}
-              className="hover:text-brand-purple transition-colors"
+              className="hover:text-amber-400 transition-colors"
             >
               {t('settings.terms')}
             </button>
           </div>
           <div className="flex items-center gap-3 mt-1">
-            <div className="w-12 h-px bg-gradient-to-r from-transparent to-brand-purple/50" />
-            <div className="w-1.5 h-1.5 rounded-full bg-brand-purple animate-pulse" />
-            <div className="w-12 h-px bg-gradient-to-l from-transparent to-brand-purple/50" />
+            <div className="w-12 h-px bg-gradient-to-r from-transparent to-amber-400/50" />
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <div className="w-12 h-px bg-gradient-to-l from-transparent to-amber-400/50" />
           </div>
         </div>
       </footer>

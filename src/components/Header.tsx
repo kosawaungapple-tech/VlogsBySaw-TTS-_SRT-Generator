@@ -7,8 +7,7 @@ interface HeaderProps {
   isAdmin: boolean;
   apiKeyStatus: { state: 'admin' | 'personal' | 'none'; label: string };
   userControl?: import('../types').VBSUserControl | null;
-  activeTab: string;
-  setActiveTab: (tab: any) => void;
+  setActiveTab: (tab: 'generate' | 'translator' | 'transcriber' | 'thumbnail' | 'video-studio' | 'history' | 'tools' | 'admin' | 'vbs-admin') => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
@@ -16,7 +15,6 @@ export const Header: React.FC<HeaderProps> = ({
   isAdmin,
   apiKeyStatus,
   userControl,
-  activeTab: _activeTab,
   setActiveTab
 }) => {
   const { language, setLanguage, t } = useLanguage();
@@ -31,28 +29,27 @@ export const Header: React.FC<HeaderProps> = ({
             window.dispatchEvent(new PopStateEvent('popstate'));
           }}
         >
-          <div className="w-11 h-11 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center shadow-2xl group-hover:scale-105 group-hover:border-amber-400/50 transition-all duration-500 overflow-hidden relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-amber-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <Mic2 className="text-amber-400 w-6 h-6 group-hover:scale-110 transition-transform" />
+          <div className="w-10 h-10 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center shadow-xl group-hover:scale-105 group-hover:border-amber-400/50 transition-all duration-300">
+            <Mic2 className="text-amber-400 w-5 h-5" />
           </div>
           <div className="flex flex-col">
-            <h1 className="text-xl font-black tracking-tight text-white leading-none">
-              Vlogs <span className="text-amber-400">By Saw</span>
+            <h1 className="text-base sm:text-lg font-bold tracking-tight text-white leading-none whitespace-nowrap">
+              Vlogs <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-200 to-amber-500">By Saw</span>
             </h1>
             <div className="flex items-center gap-2 mt-1">
-              <p className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-500 leading-none">
+              <p className="text-[9px] sm:text-[10px] uppercase font-bold tracking-widest text-slate-500 leading-none">
                 AI STUDIO
               </p>
               
               {/* API Key Status Dot */}
               {isAccessGranted && (
-                <div className="flex items-center gap-1.5 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
-                  <div className={`w-1.5 h-1.5 rounded-full ${
-                    apiKeyStatus.state !== 'none' ? 'bg-amber-400 shadow-[0_0_8px_rgba(234,179,8,0.5)]' : 
+                <div className="flex items-center gap-1 bg-white/5 px-1.5 sm:px-2 py-0.5 rounded-full border border-white/5">
+                  <div className={`w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full ${
+                    apiKeyStatus.state !== 'none' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 
                     'bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.5)]'
                   }`} />
-                  <span className={`text-[8px] font-black uppercase tracking-wider hidden xs:inline ${
-                    apiKeyStatus.state !== 'none' ? 'text-amber-400' : 
+                  <span className={`text-[7px] sm:text-[8px] font-bold uppercase tracking-wider hidden xs:inline ${
+                    apiKeyStatus.state !== 'none' ? 'text-emerald-500' : 
                     'text-rose-500'
                   }`}>
                     {apiKeyStatus.state === 'none' ? 'OFFLINE' : apiKeyStatus.state === 'admin' ? 'SYSTEM' : 'PERSONAL'}
@@ -63,12 +60,12 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           {/* Credits Display */}
           {isAccessGranted && userControl && (
-            <div className="hidden sm:flex items-center gap-2 bg-white/5 px-4 py-2 rounded-2xl border border-white/10">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">CREDITS</span>
-              <span className={`text-sm font-black font-mono ${
+            <div className="hidden lg:flex items-center gap-2 bg-white/5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl border border-white/10">
+              <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-widest">CREDITS</span>
+              <span className={`text-xs sm:text-sm font-bold font-mono ${
                 (userControl.credits || 0) > 0 ? 'text-amber-400' : 'text-rose-500'
               }`}>
                 {userControl.credits || 0}
@@ -78,22 +75,23 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={() => setLanguage(language === 'mm' ? 'en' : 'mm')}
-            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest h-11 shadow-sm shrink-0 min-w-[120px] ${
+            className={`flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl border transition-all text-[10px] sm:text-xs font-bold uppercase tracking-widest h-9 sm:h-10 shadow-sm shrink-0 ${
               language === 'mm' 
                 ? 'bg-amber-400/10 text-amber-500 border-amber-400/20 hover:bg-amber-400/20' 
                 : 'bg-white/5 text-white border-white/10 hover:bg-white/10'
             }`}
           >
             <Globe size={14} className="shrink-0" />
-            <span>{language === 'mm' ? 'Burmese' : 'English'}</span>
+            <span className="hidden xs:inline">{language === 'mm' ? 'Burmese' : 'English'}</span>
+            <span className="xs:hidden">{language === 'mm' ? 'MM' : 'EN'}</span>
           </button>
 
           <button
             onClick={() => setActiveTab('tools')}
-            className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-amber-400 hover:bg-white/10 transition-all shadow-sm"
+            className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-amber-400 hover:bg-white/10 transition-all shadow-sm h-9 sm:h-10 w-9 sm:w-10 flex items-center justify-center"
             title={t('nav.settings')}
           >
-            <Settings size={20} />
+            <Settings size={18} />
           </button>
 
           {isAccessGranted && isAdmin && (
@@ -102,7 +100,7 @@ export const Header: React.FC<HeaderProps> = ({
                 window.history.pushState({}, '', '/vbs-admin');
                 window.dispatchEvent(new PopStateEvent('popstate'));
               }}
-              className="px-6 py-2 bg-amber-400 text-black rounded-2xl text-xs font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-amber-400/20"
+              className="px-3 sm:px-6 py-2 bg-amber-400 text-black rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-amber-400/20 h-9 sm:h-10"
             >
               ADMIN
             </button>

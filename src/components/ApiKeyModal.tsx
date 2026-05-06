@@ -178,7 +178,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, role,
                     onClick={() => setActiveTab('admin')}
                     className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-bold uppercase tracking-tight rounded-xl transition-all ${
                       activeTab === 'admin' 
-                        ? 'bg-white dark:bg-slate-800 text-brand-purple shadow-sm' 
+                        ? 'bg-white dark:bg-slate-800 text-amber-500 shadow-sm' 
                         : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
                     }`}
                   >
@@ -189,7 +189,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, role,
                     onClick={() => setActiveTab('personal')}
                     className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-bold uppercase tracking-tight rounded-xl transition-all ${
                       activeTab === 'personal' 
-                        ? 'bg-white dark:bg-slate-800 text-[#F5C518] shadow-sm' 
+                        ? 'bg-white dark:bg-slate-800 text-amber-500 shadow-sm' 
                         : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
                     }`}
                   >
@@ -210,14 +210,14 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, role,
                     exit={{ opacity: 0, x: 10 }}
                     className="space-y-6"
                   >
-                    <div className="flex items-center justify-between p-4 bg-brand-purple/5 border border-brand-purple/20 rounded-2xl">
+                    <div className="flex items-center justify-between p-4 bg-amber-400/5 border border-amber-400/20 rounded-2xl">
                       <div>
                         <h4 className="text-sm font-bold text-slate-800 dark:text-white">Shared Key Mode</h4>
                         <p className="text-[10px] text-slate-500 font-medium">Allow users to utilize your admin API channels when their keys fail.</p>
                       </div>
                       <button
                         onClick={handleToggleAdminKeySharing}
-                        className={`w-12 h-6 rounded-full transition-all relative ${settings.allowSharedKeys ? 'bg-brand-purple' : 'bg-slate-300 dark:bg-slate-700'}`}
+                        className={`w-12 h-6 rounded-full transition-all relative ${settings.allowSharedKeys ? 'bg-amber-400' : 'bg-slate-300 dark:bg-slate-700'}`}
                       >
                         <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settings.allowSharedKeys ? 'left-7' : 'left-1'}`} />
                       </button>
@@ -263,15 +263,15 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, role,
                           value={newKey}
                           onChange={(e) => setNewKey(e.target.value)}
                           placeholder="Add new Admin key..."
-                          className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-purple/20 transition-all font-mono"
+                          className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-400/20 transition-all font-mono"
                         />
-                        <button onClick={handleAddAdminChannel} className="bg-brand-purple text-white px-4 rounded-xl font-bold text-sm hover:scale-105 transition-all"><Plus size={18} /></button>
+                        <button onClick={handleAddAdminChannel} className="bg-amber-400 text-black px-4 rounded-xl font-bold text-sm hover:scale-105 transition-all"><Plus size={18} /></button>
                       </div>
                       <a 
                         href="https://aistudio.google.com/apikey" 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-[10px] text-slate-400 hover:text-brand-purple transition-colors mt-2 ml-1 w-fit font-medium"
+                        className="flex items-center gap-1.5 text-[10px] text-slate-400 hover:text-amber-500 transition-colors mt-2 ml-1 w-fit font-medium"
                       >
                         <ExternalLink size={10} />
                         <span>API Key ဘယ်လိုရယူရမလဲ? → Google AI Studio တွင်ကြည့်ပါ</span>
@@ -297,14 +297,14 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, role,
                           <button 
                             type="button"
                             onClick={() => handleModeChange('admin')}
-                            className={`flex-1 py-3 text-xs font-black uppercase tracking-tight transition-all rounded-[16px] cursor-pointer ${settings.useAdminKeys ? 'bg-[#F5C518] text-black shadow-lg shadow-amber-400/20' : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-white/5'}`}
+                            className={`flex-1 py-3 text-xs font-black uppercase tracking-tight transition-all rounded-[16px] cursor-pointer ${settings.useAdminKeys ? 'bg-amber-400 text-black shadow-lg shadow-amber-400/20' : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-white/5'}`}
                           >
                             Use Admin Pool
                           </button>
                           <button 
                             type="button"
                             onClick={() => handleModeChange('personal')}
-                            className={`flex-1 py-3 text-xs font-black uppercase tracking-tight transition-all rounded-[16px] cursor-pointer ${!settings.useAdminKeys ? 'bg-[#F5C518] text-black shadow-lg shadow-amber-400/20' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 opacity-60'}`}
+                            className={`flex-1 py-3 text-xs font-black uppercase tracking-tight transition-all rounded-[16px] cursor-pointer ${!settings.useAdminKeys ? 'bg-amber-400 text-black shadow-lg shadow-amber-400/20' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 opacity-60'}`}
                           >
                             Use Personal Key
                           </button>
@@ -331,7 +331,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, role,
                           </div>
                         )
                       ) : (
-                        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl">
+                          <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl">
                           {userChannel ? (
                             <div className="flex items-center gap-2">
                               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
@@ -339,8 +339,8 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, role,
                             </div>
                           ) : (
                             <div className="flex items-center gap-2">
-                              <div className="w-1.5 h-1.5 rounded-full bg-[#F5C518] shadow-[0_0_8px_rgba(245,197,24,0.4)]" />
-                              <span className="text-[11px] font-bold text-[#F5C518] uppercase tracking-wider">Personal Key Disconnected</span>
+                              <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]" />
+                              <span className="text-[11px] font-bold text-amber-500 uppercase tracking-wider">Personal Key Disconnected</span>
                             </div>
                           )}
                         </div>
@@ -360,27 +360,27 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, role,
                             <button onClick={() => { apiChannelManager.clearUserChannel(); setUserChannel(null); }} className="p-3 bg-rose-500/10 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white transition-all"><Trash2 size={16} /></button>
                           </div>
                         ) : (
-                          <div className="space-y-3">
+                          <>
                             <div className="flex gap-2">
                               <input
                                 type="password"
                                 value={newKey}
                                 onChange={(e) => setNewKey(e.target.value)}
                                 placeholder="Enter personal Gemini key..."
-                                className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-5 py-3 text-sm focus:ring-2 focus:ring-[#F5C518]/20 outline-none transition-all font-mono"
+                                className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-5 py-3 text-sm focus:ring-2 focus:ring-amber-400/20 outline-none transition-all font-mono"
                               />
-                              <button onClick={handleSetUserChannel} className="bg-[#F5C518] text-black px-6 rounded-xl font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-[#F5C518]/20"><Plus size={22} /></button>
+                              <button onClick={handleSetUserChannel} className="bg-amber-400 text-black px-6 rounded-xl font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-amber-400/20"><Plus size={22} /></button>
                             </div>
                             <a 
                               href="https://aistudio.google.com/apikey" 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 text-[10px] text-slate-400 hover:text-[#F5C518] transition-colors mt-2 ml-1 w-fit font-medium"
+                              className="flex items-center gap-1.5 text-[10px] text-slate-400 hover:text-amber-500 transition-colors mt-2 ml-1 w-fit font-medium"
                             >
                               <ExternalLink size={10} />
                               <span>API Key ဘယ်လိုရယူရမလဲ? → Google AI Studio တွင်ကြည့်ပါ</span>
                             </a>
-                          </div>
+                          </>
                         )}
                       </div>
                     )}

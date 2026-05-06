@@ -36,8 +36,7 @@ export const ContentInput: React.FC<ContentInputProps> = ({
   hasResult,
   isAdmin,
   userControl,
-  isSharedKey,
-  rewriteCost = 0.5
+  isSharedKey
 }) => {
   const { language, t } = useLanguage();
   const [isRewriting, setIsRewriting] = useState(false);
@@ -185,7 +184,7 @@ export const ContentInput: React.FC<ContentInputProps> = ({
     : `Estimated Duration: ~${Math.floor(estimatedSeconds / 60)}m ${Math.round(estimatedSeconds % 60)}s`;
 
   return (
-    <div className="bg-white/[0.02] backdrop-blur-3xl rounded-[40px] p-8 sm:p-12 border border-white/5 shadow-[0_32px_64px_rgba(0,0,0,0.8)] relative overflow-hidden group">
+    <div className="bg-white/5 backdrop-blur-xl rounded-2xl sm:rounded-3xl p-4 sm:p-10 border border-white/10 shadow-2xl relative overflow-hidden group">
       <div className="absolute top-0 right-0 w-64 h-64 bg-amber-400/5 blur-[100px] -z-10 group-hover:bg-amber-400/10 transition-colors duration-1000" />
       
       {/* VPN NOTICE */}
@@ -195,62 +194,61 @@ export const ContentInput: React.FC<ContentInputProps> = ({
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="mb-10"
+            className="mb-6 sm:mb-8"
           >
-            <div className="bg-amber-400/5 border border-amber-400/20 rounded-3xl p-6 flex items-center justify-between gap-4 shadow-2xl relative overflow-hidden">
+            <div className="bg-amber-400/5 border border-amber-400/20 rounded-xl sm:rounded-2xl p-4 sm:p-6 flex items-center justify-between gap-4 shadow-xl relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-r from-amber-400/5 to-transparent opacity-50" />
-              <div className="flex items-center gap-5 relative z-10">
-                <div className="w-12 h-12 bg-amber-400 rounded-2xl flex items-center justify-center text-black shadow-lg shadow-amber-400/20">
-                  <Info size={24} />
+              <div className="flex items-center gap-3 sm:gap-5 relative z-10">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-amber-400 rounded-xl flex items-center justify-center text-black shadow-lg shadow-amber-400/20 shrink-0">
+                  <Info size={20} className="sm:w-6 sm:h-6" />
                 </div>
                 <div className="flex flex-col">
-                  <p className="text-sm font-black text-amber-400 uppercase tracking-widest leading-relaxed">
+                  <p className="text-xs sm:text-sm font-bold text-amber-500 uppercase tracking-widest leading-relaxed">
                     ပိုမိုမြန်ဆန်စေရန် VPN ဖွင့်၍ အသုံးပြုပေးပါ
                   </p>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
+                  <p className="text-[9px] sm:text-[10px] text-slate-500 font-medium uppercase tracking-widest mt-0.5">
                     Use VPN for professional-grade processing speeds
                   </p>
                 </div>
               </div>
               <button 
                 onClick={dismissVpnNotice}
-                className="p-2 hover:bg-white/10 rounded-xl text-slate-500 hover:text-white transition-all relative z-10"
+                className="p-1 sm:p-2 hover:bg-white/10 rounded-xl text-slate-500 hover:text-white transition-all relative z-10"
               >
-                <X size={20} />
+                <X size={18} className="sm:w-5 sm:h-5" />
               </button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
       
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-8 mb-10">
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-4">
-            <h2 className="text-3xl font-black text-white tracking-tight uppercase">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6 sm:mb-8">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
               {t('generate.contentStudio')}
             </h2>
-            <div className="flex items-center gap-2 px-3 py-1 bg-amber-400/10 rounded-full border border-amber-400/20">
-              <div className={`w-1.5 h-1.5 rounded-full ${status.dot} shadow-[0_0_8px_currentColor]`} />
-              <span className={`text-[9px] font-black uppercase tracking-widest ${status.color}`}>
+            <div className="flex items-center gap-2 px-2.5 py-1 bg-white/5 rounded-full border border-white/10">
+              <div className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
+              <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider ${status.color}`}>
                 {status.label}
               </span>
             </div>
           </div>
-          <p className="text-slate-500 text-sm font-medium">Create cinematic Burmese narrations with precision.</p>
         </div>
         
-        <div className="flex items-center gap-3 relative">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 relative">
           <motion.button
-            whileHover={{ scale: 1.02, boxShadow: '0 0 30px rgba(234, 179, 8, 0.2)' }}
+            whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => setShowStyleSelector(!showStyleSelector)}
             disabled={isRewriting || !text.trim() || currentStatus === 'cooling'}
-            className="flex items-center gap-3 px-8 py-4 bg-amber-400 text-black rounded-2xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:grayscale shadow-xl shadow-amber-400/10 min-w-[200px] justify-center"
+            className="flex items-center gap-2 px-6 py-3.5 sm:py-3 bg-amber-400 text-black rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:grayscale shadow-lg shadow-amber-400/20 w-full sm:min-w-[180px] justify-center"
           >
             {isRewriting ? (
-              <RefreshCw size={18} className="animate-spin" />
+              <RefreshCw size={16} className="animate-spin sm:w-4.5 sm:h-4.5" />
             ) : (
-              <Sparkles size={18} />
+              <Sparkles size={16} className="sm:w-4.5 sm:h-4.5" />
             )}
             {isRewriting 
               ? (currentStatus === 'cooling' ? `${t('generate.coolingDown')} (${currentCountdown}s)` : 'PROCESSING...') 
@@ -292,18 +290,18 @@ export const ContentInput: React.FC<ContentInputProps> = ({
 
           <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-800 hidden sm:block mx-1" />
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 justify-end sm:justify-start">
             <button
               onClick={handlePaste}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 transition-all transition-all"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 transition-all"
             >
-              <Clipboard size={16} /> {t('translator.copy').includes('စာသား') ? 'ထည့်သွင်းမည် (Paste)' : 'Paste'}
+              <Clipboard size={14} className="sm:w-4 sm:h-4" /> {t('translator.copy').includes('စာသား') ? 'ထည့်သွင်းမည် (Paste)' : 'Paste'}
             </button>
             <button
               onClick={() => setText('')}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-rose-500/10 hover:text-rose-500 transition-all"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-rose-500/10 hover:text-rose-500 transition-all"
             >
-              <Trash2 size={16} /> {t('history.clearScript')}
+              <Trash2 size={14} className="sm:w-4 sm:h-4" /> {t('history.clearScript')}
             </button>
           </div>
         </div>
@@ -315,13 +313,13 @@ export const ContentInput: React.FC<ContentInputProps> = ({
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={t('generate.inputPlaceholder')}
-          className="w-full h-80 bg-black/50 border border-white/5 rounded-[32px] p-8 text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400/30 focus:border-amber-400/50 resize-none custom-scrollbar transition-all duration-500 font-medium leading-relaxed shadow-[inset_0_2px_20px_rgba(0,0,0,0.4)]"
+          className="w-full h-64 sm:h-80 bg-black/40 border border-white/5 rounded-xl sm:rounded-2xl p-4 sm:p-6 text-sm sm:text-base text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400/30 focus:border-amber-400/50 resize-none custom-scrollbar transition-all duration-300 font-medium leading-relaxed"
         />
-        <div className="absolute top-6 right-6 flex gap-2">
+        <div className="absolute top-4 right-4 flex gap-2">
           <button
             onClick={() => handleCopy(text)}
             disabled={!text}
-            className="p-3 bg-white/5 backdrop-blur-xl border border-white/10 rounded-[18px] text-slate-400 hover:text-amber-400 hover:border-amber-400/50 transition-all shadow-xl disabled:opacity-20"
+            className="p-2.5 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl text-slate-400 hover:text-amber-400 hover:border-amber-400/50 transition-all shadow-xl disabled:opacity-20"
             title={t('translator.copy')}
           >
             {isCopied ? <Check size={20} className="text-emerald-500" /> : <Clipboard size={20} />}
@@ -331,9 +329,9 @@ export const ContentInput: React.FC<ContentInputProps> = ({
 
       {/* Real-time Duration Estimate Label */}
       {!hasResult && (
-        <div className="mt-4 px-2">
-          <p className="text-[12px] font-black text-slate-500 flex items-center gap-2 tracking-widest uppercase">
-            <span className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />
+        <div className="mt-4">
+          <p className="text-[11px] font-bold text-slate-500 flex items-center gap-2 uppercase tracking-wider">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
             {formattedDuration}
           </p>
         </div>

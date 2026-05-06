@@ -370,9 +370,13 @@ class ApiChannelManager {
 
     if (!isAdmin && !useAdminMode) {
       if (personalKey) return await apiFn(personalKey);
-      if (!isUserAdmin) throw new Error("Personal API Key မရှိသေးပါ။ Key ထည့်ပါ သို့မဟုတ် Admin Pool ပြောင်းပါ။");
-      // If admin has no personal key but opted for personal mode, fallback to pool? 
-      // User request says they want to switch, so if they switch and it fails it's on them.
+      
+      // Fallback: If no personal key but allowed to use admin pool, use it instead of throwing error
+      if (canUseAdminPool) {
+        console.log("[VBS API] No personal key found, falling back to Admin Pool...");
+      } else {
+        if (!isUserAdmin) throw new Error("Personal API Key မရှိသေးပါ။ Key ထည့်ပါ သို့မဟုတ် Admin Pool ပြောင်းပါ။");
+      }
     }
 
     // If we reach here, we are either in Admin Context OR Admin Mode is selected

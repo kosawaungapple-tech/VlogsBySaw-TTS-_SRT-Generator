@@ -15,7 +15,7 @@ interface WelcomePageProps {
 }
 
 export const WelcomePage: React.FC<WelcomePageProps> = ({ onEnter }) => {
-  const { t, language } = useLanguage();
+  const { language } = useLanguage();
 
   // Animation variants
   const containerVariants = {
@@ -95,9 +95,11 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({ onEnter }) => {
             </span>
           </h1>
           <p className="text-xl md:text-2xl font-medium text-slate-400 tracking-tight max-w-2xl mx-auto leading-relaxed">
-            Professional Narration & Cinematic Content Tools.
+            {language === 'mm' ? 'အစွမ်းထက်ဆုံး AI အသံထုတ်စနစ်' : 'Professional Narration & Cinematic Content Tools.'}
             <br />
-            <span className="text-slate-600 text-base">Engineered for high-end movie recappers and storytellers.</span>
+            <span className="text-slate-600 text-base">
+              {language === 'mm' ? 'Professional Narration & Cinematic Content Tools.' : 'Engineered for high-end movie recappers and storytellers.'}
+            </span>
           </p>
         </motion.div>
 
